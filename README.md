@@ -6,6 +6,18 @@ Abre o Discord por um IP fora do Brasil, devolvendo o Go Live, a câmera e a tra
 
 > **Windows apenas.** Não é VPN: só o Discord muda de rota, o resto do computador continua igual. Também não é ferramenta de privacidade: o tráfego passa por um servidor público de terceiros.
 
+## Por que o Go Live parou de funcionar
+
+Em 17 de agosto de 2026, a ANPD determinou, em [medida preventiva](https://www.gov.br/anpd/pt-br/assuntos/noticias/em-medida-preventiva-anpd-determina-que-discord-suspenda-transmissoes-ao-vivo-no-brasil), que o Discord suspendesse transmissão de tela e vídeo no Brasil. A decisão veio depois de um caso grave, envolvendo a morte de uma adolescente alvo de uma campanha coordenada de assédio em várias plataformas. O Discord cumpriu a ordem e publicou uma [carta à comunidade brasileira](https://discord.com/blog/a-letter-to-the-discord-community-in-brazil) dizendo que trabalha para restaurar os recursos.
+
+Na prática, para quem está no Brasil:
+
+| parou | continua |
+| --- | --- |
+| Go Live, transmissão de tela, chamadas de vídeo | mensagens, servidores, canais de voz sem vídeo |
+
+O bloqueio é aplicado por região, e é por isso que sair por um IP de fora o desfaz. Este projeto não opina sobre a decisão da ANPD nem sobre o caso que a motivou: ele muda a rota da sua conexão, como uma VPN faria.
+
 ## Como usar
 
 1. Baixe o `.zip` na aba [Releases](../../releases) e extraia para uma pasta sua.
@@ -190,13 +202,6 @@ go build -o DiscordGoLiveBypass.exe .
 | `proxy.go` | túnel SOCKS5 e HTTP CONNECT, teste via TLS, país de saída |
 | `source.go` | lista pública, ranqueamento, testes em paralelo, Tor, cache |
 | `discord.go` | detecção da instalação, instância única, abertura |
-
-## Limites conhecidos
-
-- **Voz e vídeo não passam pelo proxy.** O Chromium só desvia TCP, e a mídia do Discord é UDP. É intencional, mantém a qualidade, mas significa que os servidores de voz continuam vendo seu IP real.
-- **O atualizador e a telemetria escapam.** Rodam na parte Node do Electron, que ignora o parâmetro do Chromium. Nenhum dos dois carrega sua sessão, e fechá-los exigiria modificar o app por dentro.
-- **Trocar de servidor exige reabrir o Discord**, porque o parâmetro é lido uma vez. Servidor gratuito dura poucos minutos, então isso aparece na prática.
-- **Plugins de bypass conflitam**, porque mexem na conexão depois que o app abre.
 
 ## Créditos
 
