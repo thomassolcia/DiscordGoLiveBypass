@@ -1,0 +1,5 @@
+* text=auto eol=lf
+
+# Scripts do Windows precisam de CRLF: o cmd.exe engasga com .bat em LF.
+*.bat text eol=crlf
+*.ps1 text eol=crlf

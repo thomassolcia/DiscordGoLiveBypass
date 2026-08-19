@@ -1,0 +1,6 @@
+# O binario e distribuido pela aba Releases, nao versionado aqui.
+*.exe
+
+# Restos do Windows
+Thumbs.db
+desktop.ini
