@@ -4,3 +4,7 @@
 # Restos do Windows
 Thumbs.db
 desktop.ini
+
+# Configuracao de IDE: e da maquina de quem edita, nao do projeto.
+.idea/
+.vscode/
