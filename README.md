@@ -27,13 +27,34 @@ O bloqueio é aplicado por região, e é por isso que sair por um IP de fora o d
 Uma janela preta mostra o progresso e fecha sozinha quando termina:
 
 ```
-23:06:57 canal detectado: Discord
-23:06:59 procurando uma proxy publica, isso pode demorar
-23:07:08 socks5://213.136.92.91:1080 passou: 1542ms, saida em DE
-23:07:11 Discord aberto (pid 14240)
+ ╭────────────────────────────────────────────────────────╮
+ │  DiscordGoLiveBypass                                   │
+ │  abre o Discord por um IP de fora, sem VPN no sistema  │
+ ╰────────────────────────────────────────────────────────╯
+
+ ▸ 1/4  Procurando a instalacao do Discord
+   ✔  Discord encontrado
+      C:\Users\voce\AppData\Local\Discord\app-1.0.9253\Discord.exe
+
+ ▸ 2/4  Procurando uma saida fora de Brasil (BR)
+   ⠹  ██████████░░░░░░░░░░░░░░  18/40  3 responderam ate agora
+
+ ▸ 3/4  Confirmando por onde a conexao vai sair
+   ✔  a saida esta em Alemanha (DE)
+
+ ▸ 4/4  Abrindo o Discord
+   ✔  Discord aberto, pid 14240
+
+ ╭─ tudo pronto ──────────────────────────────────╮
+ │  saida     Alemanha (DE)                       │
+ │  servidor  socks5://213.136.92.91:1080         │
+ │  resposta  1542 ms                             │
+ │  discord   Discord, pid 14240                  │
+ │  tempo     14s                                 │
+ ╰────────────────────────────────────────────────╯
 ```
 
-`saida em DE` é Alemanha, mas serve qualquer país que não seja o Brasil. **A primeira tela demora mais que o normal**, às vezes meio minuto, porque tudo está dando a volta pelo exterior. Depois que carrega, o uso é igual ao de sempre.
+A barra da etapa 2 é a parte demorada: cada quadradinho é um servidor sendo testado contra o Discord de verdade. Serve qualquer país que não seja o Brasil. **A primeira tela demora mais que o normal**, às vezes meio minuto, porque tudo está dando a volta pelo exterior. Depois que carrega, o uso é igual ao de sempre.
 
 Se a janela ficar aberta com uma mensagem, algo falhou: procure a mensagem no [FAQ](#faq).
 
@@ -202,6 +223,8 @@ go build -o DiscordGoLiveBypass.exe .
 | `proxy.go` | túnel SOCKS5 e HTTP CONNECT, teste via TLS, país de saída |
 | `source.go` | lista pública, ranqueamento, testes em paralelo, Tor, cache |
 | `discord.go` | detecção da instalação, instância única, abertura |
+| `ui.go` | etapas, spinner, barra de progresso, caixas de resumo e de erro |
+| `console*.go` | liga ANSI e UTF-8 no console, e detecta quando cair para texto puro |
 
 ## Créditos
 
