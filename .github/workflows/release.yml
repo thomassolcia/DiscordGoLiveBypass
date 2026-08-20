@@ -23,14 +23,23 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Compilar
-        run: go build -trimpath -ldflags "-s -w" -o DiscordGoLiveBypass.exe .
-
-      - name: Empacotar e gerar somas
+      # Compilacao fora de tag nao vira release, entao fica marcada como dev: assim o
+      # binario nao se compara com a ultima release e nao avisa de atualizacao a toa.
+      - name: Definir versao
         shell: pwsh
         run: |
           $versao = "${{ github.ref_name }}"
           if (-not $versao.StartsWith('v')) { $versao = 'dev' }
+          "VERSAO=$versao" | Out-File -Encoding ascii -Append $env:GITHUB_ENV
+
+      - name: Compilar
+        shell: pwsh
+        run: go build -trimpath -ldflags "-s -w -X main.version=$env:VERSAO" -o DiscordGoLiveBypass.exe .
+
+      - name: Empacotar e gerar somas
+        shell: pwsh
+        run: |
+          $versao = $env:VERSAO
           $zip = "DiscordGoLiveBypass-$versao-windows-amd64.zip"
 
           Compress-Archive -Force -DestinationPath $zip -Path DiscordGoLiveBypass.exe, Abrir-Discord.bat, Criar-atalho.ps1, README.md, LICENSE

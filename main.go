@@ -23,6 +23,7 @@ type options struct {
 	force    bool
 	noCache  bool
 	noTor    bool
+	noUpdate bool
 	checkRun bool
 	fallback bool
 	deadline time.Duration
@@ -40,6 +41,7 @@ func main() {
 	flag.BoolVar(&opts.force, "force", false, "encerra um Discord ja aberto antes de subir o novo")
 	flag.BoolVar(&opts.noCache, "no-cache", false, "ignora a proxy guardada da execucao anterior")
 	flag.BoolVar(&opts.noTor, "no-tor", false, "nao procura um cliente Tor local")
+	flag.BoolVar(&opts.noUpdate, "no-update", false, "nao consulta o GitHub atras de versao nova")
 	flag.BoolVar(&opts.checkRun, "check", false, "so procura e valida a proxy, nao abre o Discord")
 	flag.BoolVar(&opts.fallback, "fallback", false, "permite conexao direta quando o proxy falhar: o Discord sobrevive, mas sai pelo seu IP sem avisar")
 	flag.DurationVar(&opts.deadline, "timeout", 3*time.Minute, "prazo total para achar uma proxy valida")
@@ -49,11 +51,20 @@ func main() {
 	opts.extra = flag.Args()
 
 	ui := NewUI()
-	if err := run(opts, ui); err != nil {
+	newer := CheckUpdate(!opts.noUpdate)
+
+	// O aviso sai por ultimo nos dois desfechos. Numa falha ele importa ainda mais: rodar
+	// uma versao velha e um motivo plausivel para o que acabou de dar errado.
+	err := run(opts, ui)
+	if err != nil {
 		ui.Fatal(err)
+	}
+	announceUpdate(ui, newer)
+	ui.Close()
+
+	if err != nil {
 		os.Exit(1)
 	}
-	ui.Close()
 }
 
 func usage() {

@@ -74,6 +74,8 @@ Get-FileHash DiscordGoLiveBypass.exe -Algorithm SHA256
 
 Se não bater com a linha correspondente do `SHA256SUMS.txt`, apague o arquivo. E quem preferir não confiar em binário nenhum pode [compilar](#compilar-do-código-fonte), que são dois comandos.
 
+Ao abrir, o programa faz uma consulta à API pública do GitHub só para saber se existe uma versão mais nova, e avisa na última linha quando existe. Ele nunca baixa nem troca nada sozinho: a atualização continua sendo você quem faz, baixando o `.zip` novo. Nada é enviado nessa consulta, nem identificador nem informação da máquina, e `-no-update` desliga.
+
 ## FAQ
 
 ### No dia a dia
@@ -196,6 +198,7 @@ Abra o Prompt de Comando na pasta do programa e use:
 | `-timeout 5m` | quanto tempo pode gastar procurando |
 | `-fallback` | deixa cair para conexão direta se o proxy falhar |
 | `-no-cache` / `-no-tor` | ignora o servidor guardado / não procura Tor local |
+| `-no-update` | não consulta o GitHub atrás de versão nova |
 
 > **Cuidado com o `-fallback`:** com ele, um servidor que morre no meio do uso vira conexão direta sem aviso, e o bloqueio volta em silêncio. Por isso não é o padrão.
 
@@ -226,6 +229,7 @@ go build -o DiscordGoLiveBypass.exe .
 | `source.go` | lista pública, ranqueamento, testes em paralelo, Tor, cache |
 | `discord.go` | detecção da instalação, instância única, abertura |
 | `ui.go` | etapas, spinner, barra de progresso, caixas de resumo e de erro |
+| `update.go` | versão do build e consulta da última release no GitHub |
 | `console*.go` | liga ANSI e UTF-8 no console, e detecta quando cair para texto puro |
 
 ## Créditos

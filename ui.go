@@ -284,8 +284,13 @@ func (u *UI) box(border, title string, rows [][2]string) {
 }
 
 func (u *UI) Banner() {
+	nome := "DiscordGoLiveBypass"
+	if version != "dev" {
+		nome += " " + version
+	}
+
 	u.box(cCyan, "", [][2]string{
-		{"", "DiscordGoLiveBypass"},
+		{"", nome},
 		{"", "abre o Discord por um IP de fora, sem VPN no sistema"},
 	})
 }
