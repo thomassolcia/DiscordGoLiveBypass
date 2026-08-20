@@ -24,6 +24,8 @@ O bloqueio é aplicado por região, e é por isso que sair por um IP de fora o d
 2. Feche o Discord por inteiro. Não basta fechar a janela: clique com o botão direito no ícone dele perto do relógio e escolha **Quit Discord**.
 3. Clique duas vezes em `Abrir-Discord.bat`.
 
+Se houver mais de um Discord na máquina, o normal e o PTB, ou o Canary junto, o `.bat` pergunta qual deles abrir antes de começar. Com um só instalado ele não pergunta nada e vai direto.
+
 Uma janela preta mostra o progresso e fecha sozinha quando termina:
 
 ```
