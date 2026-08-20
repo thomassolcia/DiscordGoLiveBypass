@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -46,10 +48,12 @@ func main() {
 	flag.Parse()
 	opts.extra = flag.Args()
 
-	if err := run(opts); err != nil {
-		fmt.Fprintf(os.Stderr, "\nerro: %v\n", err)
+	ui := NewUI()
+	if err := run(opts, ui); err != nil {
+		ui.Fatal(err)
 		os.Exit(1)
 	}
+	ui.Close()
 }
 
 func usage() {
@@ -61,81 +65,119 @@ uso: %s [flags] [-- argumentos extras para o Discord]
 	flag.PrintDefaults()
 }
 
-func logf(format string, args ...any) {
-	fmt.Printf("%s %s\n", time.Now().Format("15:04:05"), fmt.Sprintf(format, args...))
-}
-
-func run(opts options) error {
+func run(opts options, ui *UI) error {
 	excluded := ParseExcluded(opts.exclude)
 	if len(excluded) == 0 {
 		return errors.New("a lista de paises recusados ficou vazia, informe algo como -exclude BR")
 	}
 
+	steps := 4
+	if opts.checkRun {
+		steps = 3
+	}
+	ui.Plan(steps)
+	ui.Banner()
+
 	// Resolver o executável antes da busca evita gastar dois minutos procurando proxy para
 	// só então descobrir que o Discord nem está instalado.
-	channel, binary, err := resolveTarget(opts)
+	ui.Step("Procurando a instalacao do Discord")
+	channel, binary, err := resolveTarget(opts, ui)
 	if err != nil {
 		if !opts.checkRun {
 			return err
 		}
-		logf("aviso: %v", err)
+		ui.Warn("%v", err)
 	}
 
 	if binary != "" {
 		if _, err := os.Stat(binary); err != nil {
 			return fmt.Errorf("nao consegui usar o executavel %s: %w", binary, err)
 		}
-		logf("executavel: %s", binary)
+		ui.Ok("%s encontrado", channel.Friendly)
+		ui.Detail("%s", binary)
 
 		if running, err := IsRunning(channel); err != nil {
-			logf("aviso: nao consegui checar se o %s ja esta aberto: %v", channel.Friendly, err)
+			ui.Warn("nao consegui checar se o %s ja esta aberto: %v", channel.Friendly, err)
 		} else if running {
-			if opts.checkRun {
-				logf("aviso: o %s esta aberto agora, uma abertura de verdade pediria -force", channel.Friendly)
-			} else if !opts.force {
+			switch {
+			case opts.checkRun:
+				ui.Warn("o %s esta aberto agora, uma abertura de verdade pediria -force", channel.Friendly)
+			case !opts.force:
 				return fmt.Errorf("o %s ja esta aberto. Ele e instancia unica, entao abrir de novo so acorda a janela antiga, que continua no IP daqui. Feche-o ou rode com -force", channel.Friendly)
+			default:
+				ui.Warn("o %s ja esta aberto, sera reiniciado no fim", channel.Friendly)
 			}
 		}
 	}
 
-	endpoint, err := resolveProxy(opts, excluded)
+	ui.Step("Procurando uma saida fora de %s", excludedLabel(excluded))
+	endpoint, latency, err := resolveProxy(opts, excluded, ui)
 	if err != nil {
 		return err
 	}
 
+	ui.Step("Confirmando por onde a conexao vai sair")
+	ui.Busy("consultando o servico de geolocalizacao por dentro do proxy")
 	country, err := ExitCountry(endpoint, probeTimeout)
 	if err != nil {
 		return fmt.Errorf("nao consegui confirmar o pais de saida de %s: %w", endpoint, err)
 	}
-	logf("proxy escolhido: %s, saida em %s", endpoint, country)
+	ui.Ok("a saida esta em %s", CountryLabel(country))
 
 	if err := StoreCachedProxy(endpoint); err != nil {
-		logf("aviso: nao consegui guardar a proxy para a proxima vez: %v", err)
+		ui.Warn("nao consegui guardar a proxy para a proxima vez: %v", err)
+	} else {
+		ui.Detail("guardada para acelerar a proxima execucao")
+	}
+
+	summary := [][2]string{
+		{"saida", CountryLabel(country)},
+		{"servidor", endpoint.String()},
+		{"resposta", fmt.Sprintf("%d ms", latency.Milliseconds())},
 	}
 
 	if opts.checkRun {
-		logf("modo -check, o Discord nao foi aberto")
+		ui.Summary("proxy validada", append(summary, [2]string{"discord", "nao foi aberto, modo -check"}))
 		return nil
 	}
 
 	// Só encerra a instância antiga agora, com um proxy vivo na mão. Matar antes deixaria a
 	// pessoa sem Discord nenhum se a busca falhasse.
-	if err := terminateIfRunning(channel); err != nil {
+	ui.Step("Abrindo o %s", channel.Friendly)
+	if err := terminateIfRunning(channel, ui); err != nil {
 		return err
 	}
 
 	args := append(ProxyArgs(endpoint, opts.bypass, opts.fallback), opts.extra...)
+	ui.Busy("subindo o processo com as flags de proxy")
 	pid, err := Launch(binary, args)
 	if err != nil {
 		return fmt.Errorf("nao consegui abrir o %s: %w", channel.Friendly, err)
 	}
+	ui.Ok("%s aberto, pid %d", channel.Friendly, pid)
+	ui.Detail("%s", args[0])
 
-	logf("%s aberto (pid %d) com %s", channel.Friendly, pid, args[0])
-	logf("dominios fora do proxy: %s", opts.bypass)
+	ui.Summary("tudo pronto", append(summary,
+		[2]string{"discord", fmt.Sprintf("%s, pid %d", channel.Friendly, pid)},
+		[2]string{"sem proxy", opts.bypass}))
 	return nil
 }
 
-func resolveTarget(opts options) (Channel, string, error) {
+func excludedLabel(excluded map[string]bool) string {
+	codes := make([]string, 0, len(excluded))
+	for code := range excluded {
+		codes = append(codes, code)
+	}
+	sort.Strings(codes)
+
+	names := make([]string, 0, len(codes))
+	for _, code := range codes {
+		names = append(names, CountryLabel(code))
+	}
+	return strings.Join(names, ", ")
+}
+
+func resolveTarget(opts options, ui *UI) (Channel, string, error) {
 	if opts.channel != "auto" {
 		channel, err := LookupChannel(opts.channel)
 		if err != nil {
@@ -144,6 +186,8 @@ func resolveTarget(opts options) (Channel, string, error) {
 		if opts.exePath != "" {
 			return channel, opts.exePath, nil
 		}
+
+		ui.Busy("procurando o %s dentro de %%LOCALAPPDATA%%", channel.Friendly)
 		binary, err := LocateDiscord(channel)
 		return channel, binary, err
 	}
@@ -152,68 +196,73 @@ func resolveTarget(opts options) (Channel, string, error) {
 		return ChannelForBinary(opts.exePath), opts.exePath, nil
 	}
 
+	ui.Busy("procurando dentro de %%LOCALAPPDATA%%")
 	channel, binary, err := DetectChannel()
 	if err != nil {
 		return Channel{}, "", err
 	}
-	logf("canal detectado: %s", channel.Friendly)
 	return channel, binary, nil
 }
 
-func terminateIfRunning(channel Channel) error {
+func terminateIfRunning(channel Channel, ui *UI) error {
 	running, err := IsRunning(channel)
 	if err != nil || !running {
 		return nil
 	}
 
-	logf("%s ja estava aberto, encerrando", channel.Friendly)
+	ui.Busy("encerrando o %s que ja estava aberto", channel.Friendly)
 	if err := Terminate(channel); err != nil {
 		return err
 	}
+	ui.Ok("instancia antiga encerrada")
 
 	// O Windows demora um pouco para soltar o lock de instância única. Subir em cima disso
 	// faz o processo novo se achar duplicado e sair sozinho.
+	ui.Busy("esperando o Windows soltar a trava de instancia unica")
 	time.Sleep(2 * time.Second)
 	return nil
 }
 
 // As fontes vêm da mais previsível para a mais lenta.
-func resolveProxy(opts options, excluded map[string]bool) (Endpoint, error) {
+func resolveProxy(opts options, excluded map[string]bool, ui *UI) (Endpoint, time.Duration, error) {
 	deadline := time.Now().Add(opts.deadline)
 
 	if opts.manual != "" {
 		endpoint, ok := ParseProxy(opts.manual)
 		if !ok {
-			return Endpoint{}, fmt.Errorf("proxy invalido: %q. Use algo como socks5://1.2.3.4:1080", opts.manual)
+			return Endpoint{}, 0, fmt.Errorf("proxy invalido: %q. Use algo como socks5://1.2.3.4:1080", opts.manual)
 		}
 
+		ui.Busy("testando o proxy que voce passou: %s", endpoint)
 		latency, err := Probe(endpoint, probeTimeout)
 		if err != nil {
 			// Quem escolheu um proxy quer aquele, então não caímos para a busca automática:
 			// ser mandado para um endereço desconhecido em silêncio é pior que o erro.
-			return Endpoint{}, fmt.Errorf("seu proxy %s nao respondeu: %w", endpoint, err)
+			return Endpoint{}, 0, fmt.Errorf("seu proxy %s nao respondeu: %w", endpoint, err)
 		}
 
-		logf("seu proxy respondeu em %dms", latency.Milliseconds())
-		return endpoint, nil
+		ui.Ok("seu proxy respondeu em %d ms", latency.Milliseconds())
+		return endpoint, latency, nil
 	}
 
 	if !opts.noCache {
 		if cached, ok := ReadCachedProxy(); ok {
+			ui.Busy("revalidando a proxy da execucao anterior: %s", cached)
 			if latency, err := Probe(cached, fastProbeTimeout); err == nil {
-				logf("proxy guardada revalidada em %dms: %s", latency.Milliseconds(), cached)
-				return cached, nil
+				ui.Ok("a proxy guardada ainda serve, %d ms", latency.Milliseconds())
+				ui.Detail("%s", cached)
+				return cached, latency, nil
 			}
-			logf("a proxy guardada nao respondeu mais, procurando outra")
+			ui.Warn("a proxy guardada nao respondeu mais, procurando outra")
 		}
 	}
 
 	if !opts.noTor {
-		if tor, ok := DetectTor(excluded, logf); ok {
-			return tor, nil
+		ui.Busy("procurando um Tor local nas portas conhecidas")
+		if tor, latency, ok := DetectTor(excluded, ui); ok {
+			return tor, latency, nil
 		}
 	}
 
-	logf("procurando uma proxy publica, isso pode demorar")
-	return PickFreeProxy(excluded, deadline, logf)
+	return PickFreeProxy(excluded, deadline, ui)
 }

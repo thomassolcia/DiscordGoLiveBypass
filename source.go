@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -152,25 +153,31 @@ type probeResult struct {
 	latency  time.Duration
 }
 
-func PickFreeProxy(excluded map[string]bool, deadline time.Time, log func(string, ...any)) (Endpoint, error) {
+func PickFreeProxy(excluded map[string]bool, deadline time.Time, ui *UI) (Endpoint, time.Duration, error) {
+	ui.Busy("baixando a lista publica de proxies")
 	body, err := downloadText(freeProxyAPI)
 	if err != nil {
-		return Endpoint{}, fmt.Errorf("nao consegui baixar a lista de proxies: %w", err)
+		return Endpoint{}, 0, fmt.Errorf("nao consegui baixar a lista de proxies: %w", err)
 	}
 
 	candidates, err := rankFreeProxies(body, excluded)
 	if err != nil {
-		return Endpoint{}, fmt.Errorf("a lista de proxies veio num formato inesperado: %w", err)
+		return Endpoint{}, 0, fmt.Errorf("a lista de proxies veio num formato inesperado: %w", err)
 	}
 
-	log("%d candidatas depois do ranqueamento", len(candidates))
 	if len(candidates) == 0 {
-		return Endpoint{}, errors.New("nenhuma candidata sobreviveu aos filtros da lista")
+		return Endpoint{}, 0, errors.New("nenhuma candidata sobreviveu aos filtros da lista")
 	}
+	ui.Ok("%d candidatas depois dos filtros", len(candidates))
+
+	// Contadores atômicos: a barra é repintada de dentro das goroutines do lote, e a
+	// contagem precisa somar o progresso de todos os lotes, não só o atual.
+	var tested, alive int64
+	ui.Progress(0, len(candidates), "testando conexao com o Discord")
 
 	for start := 0; start < len(candidates); start += parallelProbes {
 		if time.Now().After(deadline) {
-			return Endpoint{}, errors.New("o prazo acabou antes de achar uma proxy valida")
+			return Endpoint{}, 0, errors.New("o prazo acabou antes de achar uma proxy valida")
 		}
 
 		end := start + parallelProbes
@@ -186,10 +193,12 @@ func PickFreeProxy(excluded map[string]bool, deadline time.Time, log func(string
 			go func(i int, candidate Endpoint) {
 				defer wg.Done()
 				latency, err := Probe(candidate, probeTimeout)
-				if err != nil {
-					return
+				if err == nil {
+					results[i] = &probeResult{candidate, latency}
+					atomic.AddInt64(&alive, 1)
 				}
-				results[i] = &probeResult{candidate, latency}
+				ui.Progress(int(atomic.AddInt64(&tested, 1)), len(candidates),
+					"%d responderam ate agora", atomic.LoadInt64(&alive))
 			}(i, candidate)
 		}
 		wg.Wait()
@@ -202,20 +211,24 @@ func PickFreeProxy(excluded map[string]bool, deadline time.Time, log func(string
 		}
 		sort.Slice(working, func(i, j int) bool { return working[i].latency < working[j].latency })
 
-		log("lote %d: %d de %d responderam", start/parallelProbes+1, len(working), len(batch))
+		if len(working) == 0 {
+			ui.Detail("lote %d: nenhuma das %d respondeu", start/parallelProbes+1, len(batch))
+			continue
+		}
 
 		for _, result := range working {
+			ui.Busy("conferindo o pais de saida de %s", result.endpoint)
 			country, err := Accepts(result.endpoint, excluded, probeTimeout)
 			if err != nil {
-				log("%s recusada: %v", result.endpoint, err)
+				ui.Detail("%s recusada: %v", result.endpoint, err)
 				continue
 			}
-			log("%s passou: %dms, saida em %s", result.endpoint, result.latency.Milliseconds(), country)
-			return result.endpoint, nil
+			ui.Ok("%s serve, %d ms, saida em %s", result.endpoint, result.latency.Milliseconds(), CountryLabel(country))
+			return result.endpoint, result.latency, nil
 		}
 	}
 
-	return Endpoint{}, errors.New("nenhuma proxy da lista passou nos testes")
+	return Endpoint{}, 0, errors.New("nenhuma proxy da lista passou nos testes")
 }
 
 func listening(port int, timeout time.Duration) bool {
@@ -227,28 +240,30 @@ func listening(port int, timeout time.Duration) bool {
 	return true
 }
 
-func DetectTor(excluded map[string]bool, log func(string, ...any)) (Endpoint, bool) {
+func DetectTor(excluded map[string]bool, ui *UI) (Endpoint, time.Duration, bool) {
 	for _, port := range torPorts {
 		if !listening(port, torPortTimeout) {
 			continue
 		}
 
+		ui.Busy("porta %d aberta, testando se e um proxy de verdade", port)
 		endpoint := Endpoint{Scheme: "socks5", Host: "127.0.0.1", Port: port}
-		if _, err := Probe(endpoint, probeTimeout); err != nil {
-			log("porta %d aberta mas nao respondeu como proxy, ignorando", port)
+		latency, err := Probe(endpoint, probeTimeout)
+		if err != nil {
+			ui.Detail("porta %d aberta mas nao respondeu como proxy, ignorando", port)
 			continue
 		}
 
 		country, err := Accepts(endpoint, excluded, probeTimeout)
 		if err != nil {
-			log("Tor na porta %d recusado: %v", port, err)
+			ui.Detail("Tor na porta %d recusado: %v", port, err)
 			continue
 		}
 
-		log("Tor local encontrado na porta %d, saida em %s", port, country)
-		return endpoint, true
+		ui.Ok("Tor local na porta %d, %d ms, saida em %s", port, latency.Milliseconds(), CountryLabel(country))
+		return endpoint, latency, true
 	}
-	return Endpoint{}, false
+	return Endpoint{}, 0, false
 }
 
 type cacheFile struct {

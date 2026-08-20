@@ -17,20 +17,17 @@ if not exist "%LAUNCHER%" (
     exit /b 1
 )
 
-echo Procurando um servidor fora do Brasil. Isso pode levar ate um minuto.
-echo.
-
+rem O proprio launcher desenha o cabecalho, as etapas e a caixa de erro: repetir isso
+rem aqui so faria a tela dizer a mesma coisa duas vezes.
 "%LAUNCHER%" -force %*
 
 if errorlevel 1 (
-    echo.
-    echo ------------------------------------------------------------------
-    echo Nao deu certo. A mensagem acima diz o motivo.
-    echo O FAQ do README tem uma entrada para cada mensagem dessas.
-    echo ------------------------------------------------------------------
-    echo.
     pause
     exit /b 1
 )
+
+rem Sem a espera a janela sumiria junto com o resumo do que foi feito.
+echo   Esta janela fecha sozinha. O Discord ja esta abrindo.
+timeout /t 8 > nul
 
 exit /b 0
