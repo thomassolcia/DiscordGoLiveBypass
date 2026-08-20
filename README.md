@@ -1,6 +1,18 @@
+<div align="center">
+
 # DiscordGoLiveBypass
 
-Abre o Discord por um IP fora do Brasil, devolvendo o Go Live, a câmera e a transmissão de tela.
+**Abre o Discord por um IP fora do Brasil, devolvendo o Go Live, a câmera e a transmissão de tela.**
+
+[![Versão](https://img.shields.io/github/v/release/thomassolcia/DiscordGoLiveBypass?style=flat-square&label=vers%C3%A3o&color=5865F2)](../../releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/thomassolcia/DiscordGoLiveBypass/total?style=flat-square&label=downloads&color=5865F2)](../../releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/thomassolcia/DiscordGoLiveBypass/release.yml?style=flat-square&label=build)](../../actions)
+[![Licença](https://img.shields.io/github/license/thomassolcia/DiscordGoLiveBypass?style=flat-square&label=licen%C3%A7a)](LICENSE)
+![Windows](https://img.shields.io/badge/plataforma-Windows-0078D4?style=flat-square)
+
+[**Baixar**](../../releases/latest) · [Como usar](#como-usar) · [FAQ](#faq) · [Compilar](#compilar-do-código-fonte)
+
+</div>
 
 É um programa só, sem instalação, sem plugin e sem tocar nos arquivos do Discord. Você clica, ele procura um servidor no exterior, confere se funciona e abre o Discord já conectado por ele.
 
