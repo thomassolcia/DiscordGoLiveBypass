@@ -487,3 +487,41 @@ footer button.link, footer button.perigo { font-size: 12px; }
 .acoes > button.principal { flex: 1.6; }
 .acoes svg[fill] { width: 20px; height: 20px; }
 .temas { border: 1px solid var(--borda); }
+
+/* Pergunta do X */
+#sobreposicao:empty { display: none; }
+.fundo-modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.modal {
+  width: min(440px, 100%);
+  background: var(--cartao);
+  border: 1px solid var(--borda-forte);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+.modal h2 { font-size: 17px; margin-bottom: 8px; }
+.modal p { color: var(--apagado); }
+.modal .acoes { flex-direction: column; margin: 16px 0 12px; }
+.modal .acoes > button { flex: none; width: 100%; }
+.modal .rodape-modal { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.modal .rodape-modal .marcar { margin: 0; }
+button.perigo-cheio { background: transparent; color: var(--vermelho); border: 1px solid rgba(242, 85, 90, 0.4); }
+button.perigo-cheio:hover:not(:disabled) { background: rgba(242, 85, 90, 0.1); }
+
+select {
+  font: inherit;
+  color: var(--texto);
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+.linha-pref { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; }
+

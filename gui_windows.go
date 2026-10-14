@@ -43,9 +43,10 @@ type App struct {
 	ctx  context.Context
 	tray *tray
 
-	mu     sync.Mutex
-	last   AppState
-	hidden bool
+	mu       sync.Mutex
+	last     AppState
+	hidden   bool
+	quitting bool
 }
 
 type ConfInfo struct {
@@ -81,7 +82,15 @@ type ExitResult struct {
 type Prefs struct {
 	Theme       string `json:"tema"`
 	OpenDiscord bool   `json:"abrir_discord"`
+	// O que o X faz: perguntar, ir para a bandeja ou desligar o túnel e fechar.
+	CloseAction string `json:"ao_fechar"`
 }
+
+const (
+	closeAsk  = "perguntar"
+	closeTray = "bandeja"
+	closeStop = "parar"
+)
 
 func prefsPath() string {
 	dir, err := os.UserConfigDir()
@@ -92,7 +101,7 @@ func prefsPath() string {
 }
 
 func loadPrefs() Prefs {
-	prefs := Prefs{Theme: themeSystem, OpenDiscord: true}
+	prefs := Prefs{Theme: themeSystem, OpenDiscord: true, CloseAction: closeAsk}
 	if raw, err := os.ReadFile(prefsPath()); err == nil {
 		json.Unmarshal(raw, &prefs)
 	}
@@ -100,6 +109,11 @@ func loadPrefs() Prefs {
 	case themeSystem, themeLight, themeDark:
 	default:
 		prefs.Theme = themeSystem
+	}
+	switch prefs.CloseAction {
+	case closeAsk, closeTray, closeStop:
+	default:
+		prefs.CloseAction = closeAsk
 	}
 	return prefs
 }
@@ -214,7 +228,80 @@ func (a *App) MostrarJanela() {
 	a.mu.Unlock()
 }
 
-func (a *App) Sair() { runtime.Quit(a.ctx) }
+func (a *App) hideToTray() {
+	runtime.WindowHide(a.ctx)
+	a.mu.Lock()
+	a.hidden = true
+	a.mu.Unlock()
+}
+
+func (a *App) quit() {
+	a.mu.Lock()
+	a.quitting = true
+	a.mu.Unlock()
+	runtime.Quit(a.ctx)
+}
+
+func configured(state AppState) bool {
+	return state.ServiceRunning && state.Status != nil && state.Status.HasConf
+}
+
+// beforeClose decide o que o X faz. Sem túnel configurado não há o que perguntar; com
+// ele, a página pergunta se a pessoa quer deixar o app na bandeja ou desligar o túnel, a
+// menos que ela já tenha escolhido de vez.
+func (a *App) beforeClose(ctx context.Context) bool {
+	a.mu.Lock()
+	quitting, state, tray := a.quitting, a.last, a.tray
+	a.mu.Unlock()
+	if quitting || !configured(state) {
+		return false
+	}
+
+	switch loadPrefs().CloseAction {
+	case closeTray:
+		if tray != nil {
+			a.hideToTray()
+			return true
+		}
+	case closeStop:
+		a.Desligar()
+		return false
+	}
+	runtime.EventsEmit(ctx, "pedido-fechar", tray != nil)
+	return true
+}
+
+// Respostas da pergunta do X. Com "lembrar", a escolha vira o padrão e a pergunta some;
+// ela pode ser trocada de novo nas preferências.
+func (a *App) FecharParaBandeja(lembrar bool) {
+	if lembrar {
+		prefs := loadPrefs()
+		prefs.CloseAction = closeTray
+		savePrefs(prefs)
+	}
+	a.hideToTray()
+}
+
+func (a *App) PararEFechar(lembrar bool) error {
+	if lembrar {
+		prefs := loadPrefs()
+		prefs.CloseAction = closeStop
+		savePrefs(prefs)
+	}
+	if _, err := callService(ipcRequest{Cmd: cmdDisable}, 30*time.Second); err != nil {
+		return err
+	}
+	a.quit()
+	return nil
+}
+
+// Sair, no menu da bandeja, faz a mesma pergunta que o X, com a janela à mostra.
+func (a *App) Sair() {
+	a.MostrarJanela()
+	if !a.beforeClose(a.ctx) {
+		a.quit()
+	}
+}
 
 func stateLabel(state AppState) string {
 	if state.Status == nil || !state.Status.HasConf {
@@ -601,12 +688,13 @@ func runGUI() error {
 	return wails.Run(&options.App{
 		Title:            "DiscordGoLiveBypass",
 		Width:            940,
-		Height:           660,
+		Height:           700,
 		MinWidth:         800,
 		MinHeight:        600,
 		BackgroundColour: backgroundFor(prefs.Theme),
 		AssetServer:      &assetserver.Options{Assets: assets},
 		OnStartup:        app.startup,
+		OnBeforeClose:    app.beforeClose,
 		OnShutdown:       app.shutdown,
 		Bind:             []interface{}{app},
 		SingleInstanceLock: &options.SingleInstanceLock{

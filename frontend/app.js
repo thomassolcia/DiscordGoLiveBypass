@@ -19,7 +19,11 @@ const s = {
   avisoDiscord: false,
   versaoNova: '',
   confirmandoRemocao: false,
+  pedidoFechar: null,
+  lembrarFechar: false,
 };
+
+const sobreposicao = document.getElementById('sobreposicao');
 
 // Ícones desenhados à mão, no estilo de traço fino, para não depender de nada de fora.
 const icones = {
@@ -361,6 +365,14 @@ function painel() {
         <section class="cartao">
           <h2>Preferências</h2>
           ${marcarAbrirDiscord()}
+          <label class="linha-pref">
+            <span>Ao clicar no X</span>
+            <select data-pref="ao_fechar">
+              <option value="perguntar" ${s.prefs.ao_fechar === 'perguntar' ? 'selected' : ''}>Perguntar</option>
+              <option value="bandeja" ${s.prefs.ao_fechar === 'bandeja' ? 'selected' : ''}>Ir para a bandeja</option>
+              <option value="parar" ${s.prefs.ao_fechar === 'parar' ? 'selected' : ''}>Desligar o túnel e fechar</option>
+            </select>
+          </label>
           <p class="pequeno">Minimizar esconde esta janela na bandeja, perto do relógio. O túnel não depende dela: fica ligado mesmo com ela fechada e volta sozinho quando o Windows inicia.</p>
         </section>
       </div>
@@ -403,11 +415,36 @@ function desenharRodape() {
     <span class="lado">${direita}</span>`;
 }
 
+// A pergunta do X. Deixar na bandeja vem primeiro porque é o que mantém o Go Live
+// funcionando, e é o que a maioria das pessoas quer ao fechar a janela.
+function modalFechar() {
+  const pedido = s.pedidoFechar;
+  if (!pedido) return '';
+  const ocupado = s.ocupado === 'fechar' ? 'disabled' : '';
+  return `<div class="fundo-modal" data-acao="fechar-cancelar">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-fechar">
+        <h2 id="titulo-fechar">Fechar o DiscordGoLiveBypass?</h2>
+        <p>${pedido.bandeja
+          ? 'Na bandeja, perto do relógio, o túnel continua ligado e o Go Live segue funcionando. Desligar o túnel faz o Discord voltar para a sua conexão normal, sem Go Live.'
+          : 'Desligar o túnel faz o Discord voltar para a sua conexão normal, sem Go Live.'}</p>
+        <div class="acoes">
+          ${pedido.bandeja ? `<button class="principal grande" data-acao="fechar-bandeja" ${ocupado}>Deixar na bandeja</button>` : ''}
+          <button class="grande perigo-cheio" data-acao="fechar-parar" ${ocupado}>${s.ocupado === 'fechar' ? 'Desligando…' : 'Desligar o túnel e fechar'}</button>
+        </div>
+        <div class="rodape-modal">
+          <label class="marcar"><input type="checkbox" data-lembrar ${s.lembrarFechar ? 'checked' : ''}><span>Não perguntar de novo</span></label>
+          <button class="link" data-acao="fechar-cancelar">Cancelar</button>
+        </div>
+      </section>
+    </div>`;
+}
+
 function desenhar() {
   if (!s.app) return;
   document.getElementById('versao').textContent = s.app.version;
   tela.innerHTML = configurado() ? painel() : telaInicial();
   rodape.innerHTML = desenharRodape();
+  sobreposicao.innerHTML = modalFechar();
 }
 
 // Ações -------------------------------------------------------------------------------
@@ -446,6 +483,19 @@ const acoes = {
   'pedir-remocao': () => { s.confirmandoRemocao = true; desenhar(); },
   'cancelar-remocao': () => { s.confirmandoRemocao = false; desenhar(); },
   remover: () => acao('remover', () => go().Desinstalar()),
+  'fechar-bandeja': async () => {
+    const lembrar = s.lembrarFechar;
+    s.pedidoFechar = null;
+    s.lembrarFechar = false;
+    desenhar();
+    await go().FecharParaBandeja(lembrar);
+    if (lembrar) s.prefs = await go().Preferencias();
+  },
+  'fechar-parar': () => acao('fechar', async () => {
+    await go().PararEFechar(s.lembrarFechar);
+    s.pedidoFechar = null;
+  }),
+  'fechar-cancelar': () => { s.pedidoFechar = null; s.lembrarFechar = false; desenhar(); },
 };
 
 document.addEventListener('click', (evento) => {
@@ -456,6 +506,8 @@ document.addEventListener('click', (evento) => {
   }
   const alvo = evento.target.closest('[data-acao], [data-arquivo]');
   if (!alvo || alvo.disabled) return;
+  // O fundo escurecido fecha a pergunta, mas um clique dentro do cartão não pode subir até ele.
+  if (alvo.classList.contains('fundo-modal') && evento.target !== alvo) return;
   if (alvo.dataset.arquivo) {
     escolher([...s.candidatos, s.escolhido].find((c) => c && c.path === alvo.dataset.arquivo));
     return;
@@ -465,12 +517,25 @@ document.addEventListener('click', (evento) => {
 });
 
 document.addEventListener('change', (evento) => {
+  if (evento.target.matches('[data-lembrar]')) {
+    s.lembrarFechar = evento.target.checked;
+    return;
+  }
   const campo = evento.target.closest('[data-pref]');
-  if (campo) salvarPreferencias({ [campo.dataset.pref]: campo.checked });
+  if (!campo) return;
+  salvarPreferencias({ [campo.dataset.pref]: campo.type === 'checkbox' ? campo.checked : campo.value });
+});
+
+document.addEventListener('keydown', (evento) => {
+  if (evento.key === 'Escape' && s.pedidoFechar) acoes['fechar-cancelar']();
 });
 
 window.runtime.EventsOn('arquivo-solto', (info) => escolher(info));
 window.runtime.EventsOn('atualizar', () => atualizar());
+window.runtime.EventsOn('pedido-fechar', (temBandeja) => {
+  s.pedidoFechar = { bandeja: Boolean(temBandeja) };
+  desenhar();
+});
 
 aplicarTema();
 go().Preferencias().then((prefs) => { s.prefs = prefs; aplicarTema(); desenhar(); }).catch(() => {});
