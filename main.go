@@ -93,6 +93,14 @@ func main() {
 		return
 	}
 
+	// Dois cliques no executável é o mesmo pedido que dois cliques no .bat, que sempre
+	// passa -force: quem clicou quer o Discord aberto pelo túnel, e não um erro dizendo
+	// que ele já estava aberto.
+	doubleClicked := ownsConsole()
+	if doubleClicked {
+		opts.force = true
+	}
+
 	ui := NewUI()
 	newer := CheckUpdate(!opts.noUpdate)
 
@@ -106,9 +114,23 @@ func main() {
 	announceUpdate(ui, newer)
 	ui.Close()
 
+	if doubleClicked {
+		keepWindowOpen(err != nil)
+	}
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+// Sem o .bat, ninguém segura a janela: o resumo ou o erro sumiriam antes de alguém ler.
+func keepWindowOpen(failed bool) {
+	if failed {
+		fmt.Print("  Aperte Enter para fechar.")
+		stdin.ReadString('\n')
+		return
+	}
+	fmt.Println("  Esta janela fecha sozinha em alguns segundos.")
+	time.Sleep(8 * time.Second)
 }
 
 func usage() {
