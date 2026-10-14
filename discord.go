@@ -82,8 +82,8 @@ func newerThan(a, b []int) bool {
 	return len(a) > len(b)
 }
 
-// Aponta para o Discord.exe dentro de app-<versão>, e não para o Update.exe da raiz, porque
-// só o binário final aceita as flags do Chromium.
+// Aponta para o Discord.exe dentro de app-<versão>, e não para o Update.exe da raiz: é pelo
+// nome desse binário que o túnel acompanha se o Discord continua aberto.
 func LocateDiscord(channel Channel) (string, error) {
 	local := os.Getenv("LOCALAPPDATA")
 	if local == "" {
@@ -146,8 +146,8 @@ func complete(dir string) bool {
 	return true
 }
 
-// O Discord é instância única: subir um segundo processo com as flags só acorda a janela do
-// primeiro, que continua no IP de casa.
+// O Discord é instância única: subir um segundo processo só acorda a janela do primeiro, e as
+// conexões que ele já tinha aberto continuam pela rota de antes do túnel.
 func IsRunning(channel Channel) (bool, error) {
 	if runtime.GOOS != "windows" {
 		return false, fmt.Errorf("checagem de processo so implementada no Windows")
@@ -170,20 +170,6 @@ func Terminate(channel Channel) error {
 		return fmt.Errorf("taskkill falhou: %v: %s", err, strings.TrimSpace(string(out)))
 	}
 	return nil
-}
-
-// O direct:// no fim é a válvula de escape do Chromium: salva a sessão quando o proxy cai,
-// ao preço de o bypass sumir sem avisar.
-func ProxyArgs(e Endpoint, bypass string, fallbackDirect bool) []string {
-	rules := e.String()
-	if fallbackDirect {
-		rules += ",direct://"
-	}
-
-	return []string{
-		fmt.Sprintf("--proxy-server=%s", rules),
-		fmt.Sprintf("--proxy-bypass-list=%s", bypass),
-	}
 }
 
 func Launch(binary string, args []string) (int, error) {

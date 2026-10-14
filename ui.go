@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/signal"
@@ -27,26 +28,21 @@ const (
 
 type glyphs struct {
 	ok, fail, warn, info, step string
-	barFull, barEmpty          string
 	tl, tr, bl, br, h, v       string
 	spinner                    []string
 }
 
 var wideGlyphs = glyphs{
 	ok: "✔", fail: "✘", warn: "▲", info: "•", step: "▸",
-	barFull: "█", barEmpty: "░",
 	tl: "╭", tr: "╮", bl: "╰", br: "╯", h: "─", v: "│",
 	spinner: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 }
 
 var plainGlyphs = glyphs{
 	ok: "+", fail: "x", warn: "!", info: "-", step: ">",
-	barFull: "#", barEmpty: ".",
 	tl: "+", tr: "+", bl: "+", br: "+", h: "-", v: "|",
 	spinner: []string{"|", "/", "-", "\\"},
 }
-
-const barWidth = 24
 
 type UI struct {
 	mu      sync.Mutex
@@ -209,33 +205,46 @@ func (u *UI) Busy(format string, args ...any) {
 	u.setLive(u.paint(cDim, text))
 }
 
-// Chamada de varias goroutines ao mesmo tempo enquanto as candidatas sao testadas.
-func (u *UI) Progress(done, total int, format string, args ...any) {
-	if total <= 0 {
-		return
-	}
-	if done > total {
-		done = total
+// Um leitor so para o programa todo: dois buffers sobre o mesmo stdin dividiriam a linha
+// digitada entre eles.
+var stdin = bufio.NewReader(os.Stdin)
+
+// Sem ninguem no console do outro lado, quem chamou trata a falta de resposta como recusa
+// em vez de ficar esperando para sempre.
+func (u *UI) Ask(prompt string) (string, bool) {
+	if !charDevice(os.Stdin) {
+		return "", false
 	}
 
 	u.mu.Lock()
-	defer u.mu.Unlock()
-
-	if !u.rich {
-		// Sem reescrita de linha, uma linha por lote ja basta para nao virar spam.
-		if done == 0 || (done != total && done%parallelProbes != 0) {
-			return
-		}
-		fmt.Fprintf(u.out, "   %s  %d/%d testadas, %s\n", u.g.info, done, total, fmt.Sprintf(format, args...))
-		return
+	u.clearLive()
+	fmt.Fprintf(u.out, "   %s  %s", u.paint(cCyan, u.g.info), prompt)
+	if u.rich {
+		fmt.Fprint(u.out, showCursor)
 	}
+	u.mu.Unlock()
 
-	filled := barWidth * done / total
-	bar := strings.Repeat(u.g.barFull, filled) + strings.Repeat(u.g.barEmpty, barWidth-filled)
-	u.setLive(fmt.Sprintf("%s  %s  %s",
-		u.paint(cCyan, bar),
-		fmt.Sprintf("%d/%d", done, total),
-		u.paint(cDim, fmt.Sprintf(format, args...))))
+	line, err := stdin.ReadString('\n')
+
+	u.mu.Lock()
+	if u.rich && u.spinner != nil {
+		fmt.Fprint(u.out, hideCursor)
+	}
+	u.mu.Unlock()
+
+	if err != nil && line == "" {
+		return "", false
+	}
+	return strings.TrimSpace(line), true
+}
+
+// Enter sozinho aceita: a pergunta sempre traz a resposta esperada em maiuscula.
+func yes(answer string) bool {
+	switch strings.ToLower(strings.TrimSpace(answer)) {
+	case "", "s", "sim", "y", "yes":
+		return true
+	}
+	return false
 }
 
 func runeLen(s string) int {
@@ -291,7 +300,7 @@ func (u *UI) Banner() {
 
 	u.box(cCyan, "", [][2]string{
 		{"", nome},
-		{"", "abre o Discord por um IP de fora, sem VPN no sistema"},
+		{"", "so o Discord passa pela VPN, o resto do PC fica igual"},
 	})
 }
 

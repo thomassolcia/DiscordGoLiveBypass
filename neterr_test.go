@@ -20,11 +20,11 @@ func (fakeTimeout) Temporary() bool { return true }
 func dialFailure(cause error) error {
 	return &url.Error{
 		Op:  "Get",
-		URL: freeProxyAPI,
+		URL: traceURL,
 		Err: &net.OpError{
 			Op:   "dial",
 			Net:  "tcp",
-			Addr: &net.TCPAddr{IP: net.IPv4(104, 18, 11, 5), Port: 443},
+			Addr: &net.TCPAddr{IP: net.IPv4(162, 159, 128, 233), Port: 443},
 			Err:  os.NewSyscallError("connectex", cause),
 		},
 	}
@@ -39,15 +39,15 @@ func TestDescribeNetworkBlockedByMachine(t *testing.T) {
 		if !strings.Contains(got, "antivirus ou firewall") {
 			t.Errorf("%s: DescribeNetwork = %q, queria a dica de antivirus", name, got)
 		}
-		if strings.Contains(got, "proxyscrape") {
+		if strings.Contains(got, "cdn-cgi") {
 			t.Errorf("%s: DescribeNetwork = %q, ainda carrega a URL crua", name, got)
 		}
 	}
 }
 
 func TestDescribeNetworkOutrosCasos(t *testing.T) {
-	dns := &url.Error{Op: "Get", URL: freeProxyAPI, Err: &net.DNSError{Err: "no such host", Name: "api.proxyscrape.com"}}
-	if got := DescribeNetwork(dns); !strings.Contains(got, "api.proxyscrape.com") || !strings.Contains(got, "DNS") {
+	dns := &url.Error{Op: "Get", URL: traceURL, Err: &net.DNSError{Err: "no such host", Name: "discord.com"}}
+	if got := DescribeNetwork(dns); !strings.Contains(got, "discord.com") || !strings.Contains(got, "DNS") {
 		t.Errorf("DescribeNetwork(dns) = %q, queria falar de DNS e do endereco", got)
 	}
 
@@ -60,8 +60,8 @@ func TestDescribeNetworkOutrosCasos(t *testing.T) {
 	}
 
 	// Sem causa conhecida sobra a mensagem de dentro, mas ja sem a URL.
-	plain := &url.Error{Op: "Get", URL: freeProxyAPI, Err: errors.New("a lista respondeu HTTP 503")}
-	if got := DescribeNetwork(plain); got != "a lista respondeu HTTP 503" {
+	plain := &url.Error{Op: "Get", URL: traceURL, Err: errors.New("o Discord respondeu HTTP 503")}
+	if got := DescribeNetwork(plain); got != "o Discord respondeu HTTP 503" {
 		t.Errorf("DescribeNetwork(generico) = %q", got)
 	}
 
