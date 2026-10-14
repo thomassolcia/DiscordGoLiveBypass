@@ -5,12 +5,15 @@ package main
 import (
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wailsapp/wails/v2"
@@ -19,6 +22,7 @@ import (
 	winopts "github.com/wailsapp/wails/v2/pkg/options/windows"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 //go:embed all:frontend
@@ -27,12 +31,21 @@ var frontendFiles embed.FS
 const (
 	protonDownloads = "https://account.protonvpn.com/downloads"
 	helpURL         = "https://github.com/thomassolcia/DiscordGoLiveBypass#faq"
+
+	themeSystem = "sistema"
+	themeLight  = "claro"
+	themeDark   = "escuro"
 )
 
 // App é a ponte da página com o Go: cada método exportado vira uma função em
 // window.go.main.App, e o que ele devolve chega à página como JSON.
 type App struct {
-	ctx context.Context
+	ctx  context.Context
+	tray *tray
+
+	mu     sync.Mutex
+	last   AppState
+	hidden bool
 }
 
 type ConfInfo struct {
@@ -52,6 +65,7 @@ type AppState struct {
 	Status         *ServiceStatus `json:"status,omitempty"`
 	NeedsUpdate    bool           `json:"needs_update"`
 	DiscordOpen    []string       `json:"discord_open"`
+	Discord        string         `json:"discord"`
 	Error          string         `json:"error,omitempty"`
 }
 
@@ -63,6 +77,92 @@ type ExitResult struct {
 	Blocked bool   `json:"blocked"`
 }
 
+// Prefs são escolhas da pessoa, não do túnel: ficam na pasta dela e não no serviço.
+type Prefs struct {
+	Theme       string `json:"tema"`
+	OpenDiscord bool   `json:"abrir_discord"`
+}
+
+func prefsPath() string {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "DiscordGoLiveBypass", "janela.json")
+}
+
+func loadPrefs() Prefs {
+	prefs := Prefs{Theme: themeSystem, OpenDiscord: true}
+	if raw, err := os.ReadFile(prefsPath()); err == nil {
+		json.Unmarshal(raw, &prefs)
+	}
+	switch prefs.Theme {
+	case themeSystem, themeLight, themeDark:
+	default:
+		prefs.Theme = themeSystem
+	}
+	return prefs
+}
+
+func savePrefs(prefs Prefs) error {
+	path := prefsPath()
+	if path == "" {
+		return errors.New("não achei a pasta de configurações do usuário")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	raw, err := json.MarshalIndent(prefs, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, raw, 0o600)
+}
+
+// O tema "sistema" segue a escolha do Windows para os aplicativos, a mesma que o
+// Explorador usa.
+func systemPrefersLight() bool {
+	key, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Themes\Personalize`, registry.QUERY_VALUE)
+	if err != nil {
+		return false
+	}
+	defer key.Close()
+	value, _, err := key.GetIntegerValue("AppsUseLightTheme")
+	return err == nil && value == 1
+}
+
+func resolvedTheme(theme string) string {
+	if theme == themeSystem {
+		if systemPrefersLight() {
+			return themeLight
+		}
+		return themeDark
+	}
+	return theme
+}
+
+// Fundo da janela antes da página carregar. Com a cor errada, quem usa o tema claro veria
+// um clarão escuro a cada abertura.
+func backgroundFor(theme string) *options.RGBA {
+	if resolvedTheme(theme) == themeLight {
+		return &options.RGBA{R: 242, G: 243, B: 245, A: 255}
+	}
+	return &options.RGBA{R: 26, G: 27, B: 30, A: 255}
+}
+
+func (a *App) applyTheme(theme string) {
+	switch theme {
+	case themeLight:
+		runtime.WindowSetLightTheme(a.ctx)
+	case themeDark:
+		runtime.WindowSetDarkTheme(a.ctx)
+	default:
+		runtime.WindowSetSystemDefaultTheme(a.ctx)
+	}
+	bg := backgroundFor(theme)
+	runtime.WindowSetBackgroundColour(a.ctx, bg.R, bg.G, bg.B, bg.A)
+}
+
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	runtime.OnFileDrop(ctx, func(x, y int, paths []string) {
@@ -70,7 +170,90 @@ func (a *App) startup(ctx context.Context) {
 			runtime.EventsEmit(ctx, "arquivo-solto", a.LerArquivo(paths[0]))
 		}
 	})
+
+	tray, err := startTray("DiscordGoLiveBypass", a.MostrarJanela, a.trayMenu)
+	if err != nil {
+		log.Printf("sem ícone na bandeja, minimizar fica como no Windows: %v", err)
+	} else {
+		log.Printf("ícone na bandeja pronto")
+	}
+	a.tray = tray
+	go a.watchMinimize()
 }
+
+func (a *App) shutdown(ctx context.Context) {
+	a.tray.Close()
+}
+
+// Minimizar manda a janela para a bandeja. O Wails não avisa quando ela é minimizada, então
+// a janela é conferida em intervalos curtos, o que custa quase nada.
+func (a *App) watchMinimize() {
+	if a.tray == nil {
+		return
+	}
+	ticker := time.NewTicker(300 * time.Millisecond)
+	defer ticker.Stop()
+	for range ticker.C {
+		a.mu.Lock()
+		hidden := a.hidden
+		a.mu.Unlock()
+		if !hidden && runtime.WindowIsMinimised(a.ctx) {
+			runtime.WindowHide(a.ctx)
+			a.mu.Lock()
+			a.hidden = true
+			a.mu.Unlock()
+		}
+	}
+}
+
+func (a *App) MostrarJanela() {
+	runtime.WindowShow(a.ctx)
+	runtime.WindowUnminimise(a.ctx)
+	a.mu.Lock()
+	a.hidden = false
+	a.mu.Unlock()
+}
+
+func (a *App) Sair() { runtime.Quit(a.ctx) }
+
+func stateLabel(state AppState) string {
+	if state.Status == nil || !state.Status.HasConf {
+		return "não configurado"
+	}
+	switch state.Status.State {
+	case stateOn:
+		return "Go Live liberado"
+	case stateConnecting:
+		return "conectando"
+	case stateNoServer:
+		return "servidor sem resposta"
+	case stateOff:
+		return "túnel desligado"
+	}
+	return "erro no túnel"
+}
+
+func (a *App) trayMenu() []trayItem {
+	a.mu.Lock()
+	state := a.last
+	a.mu.Unlock()
+
+	items := []trayItem{{Label: "Abrir o painel", Action: a.MostrarJanela, Default: true}}
+	if state.Discord != "" {
+		items = append(items, trayItem{Label: "Abrir o " + state.Discord, Action: func() { a.AbrirDiscord() }})
+	}
+	if state.Status != nil && state.Status.HasConf {
+		items = append(items, trayItem{})
+		if state.Status.Enabled {
+			items = append(items, trayItem{Label: "Desligar o túnel", Action: func() { a.Desligar(); a.notifyPage() }})
+		} else {
+			items = append(items, trayItem{Label: "Ligar o túnel", Action: func() { a.Ligar(); a.notifyPage() }})
+		}
+	}
+	return append(items, trayItem{}, trayItem{Label: "Sair", Action: a.Sair})
+}
+
+func (a *App) notifyPage() { runtime.EventsEmit(a.ctx, "atualizar") }
 
 // Consulta com o mínimo de permissão: qualquer usuário pode perguntar se o serviço existe
 // e se está rodando, sem administrador.
@@ -95,6 +278,15 @@ func serviceInstalled() (installed, running bool) {
 	return true, status.CurrentState == windows.SERVICE_RUNNING
 }
 
+// O Discord que "Abrir o Discord" abre: o que já está aberto, ou o primeiro instalado.
+func discordToOpen() (Channel, string, error) {
+	if running := RunningChannels(); len(running) > 0 {
+		binary, err := LocateDiscord(running[0])
+		return running[0], binary, err
+	}
+	return DetectChannel()
+}
+
 func (a *App) Estado() AppState {
 	state := AppState{Version: version, DiscordOpen: []string{}}
 	state.Installed, state.ServiceRunning = serviceInstalled()
@@ -111,7 +303,28 @@ func (a *App) Estado() AppState {
 	for _, channel := range RunningChannels() {
 		state.DiscordOpen = append(state.DiscordOpen, channel.Friendly)
 	}
+	if channel, _, err := discordToOpen(); err == nil {
+		state.Discord = channel.Friendly
+	}
+
+	a.mu.Lock()
+	a.last = state
+	a.mu.Unlock()
+	if a.tray != nil {
+		a.tray.SetTip("DiscordGoLiveBypass: " + stateLabel(state))
+	}
 	return state
+}
+
+func (a *App) Preferencias() Prefs { return loadPrefs() }
+
+func (a *App) SalvarPreferencias(prefs Prefs) (Prefs, error) {
+	if err := savePrefs(prefs); err != nil {
+		return loadPrefs(), err
+	}
+	prefs = loadPrefs()
+	a.applyTheme(prefs.Theme)
+	return prefs, nil
 }
 
 func (a *App) LerArquivo(path string) ConfInfo {
@@ -277,6 +490,19 @@ func (a *App) ConferirSaida() (ExitResult, error) {
 	}, nil
 }
 
+// Com o túnel sempre ligado, abrir o Discord é só abrir: ele já nasce passando pelo túnel.
+// Se ele já estiver aberto, abrir de novo traz a janela dele para a frente.
+func (a *App) AbrirDiscord() (string, error) {
+	channel, binary, err := discordToOpen()
+	if err != nil {
+		return "", errors.New("não achei o Discord instalado neste computador")
+	}
+	if _, err := Launch(binary, nil); err != nil {
+		return "", fmt.Errorf("não consegui abrir o %s: %v", channel.Friendly, err)
+	}
+	return channel.Friendly, nil
+}
+
 // O Discord aberto antes do túnel mantém as conexões que já tinha pela rota antiga até
 // reconectar sozinho. Reiniciar faz tudo passar pelo túnel na hora.
 func (a *App) ReiniciarDiscord() ([]string, error) {
@@ -336,31 +562,59 @@ func (a *App) Desinstalar() error {
 	return nil
 }
 
+// O registro da janela fica na pasta do usuário, ao lado das preferências: é o que dá para
+// pedir num relato quando algo da janela falha, já que ela não tem console.
+func openGUILog() {
+	path := prefsPath()
+	if path == "" {
+		return
+	}
+	logPath := filepath.Join(filepath.Dir(path), "janela.log")
+	os.MkdirAll(filepath.Dir(logPath), 0o700)
+	if info, err := os.Stat(logPath); err == nil && info.Size() > maxLogBytes {
+		os.Rename(logPath, logPath+".1")
+	}
+	if file, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600); err == nil {
+		log.SetOutput(file)
+		log.SetFlags(log.Ldate | log.Ltime)
+	}
+}
+
 func runGUI() error {
+	openGUILog()
+	log.Printf("janela iniciando, versão %s", version)
 	app := &App{}
 	assets, err := fs.Sub(frontendFiles, "frontend")
 	if err != nil {
 		return err
 	}
+
+	prefs := loadPrefs()
+	theme := winopts.SystemDefault
+	switch prefs.Theme {
+	case themeLight:
+		theme = winopts.Light
+	case themeDark:
+		theme = winopts.Dark
+	}
+
 	return wails.Run(&options.App{
 		Title:            "DiscordGoLiveBypass",
-		Width:            460,
-		Height:           700,
-		MinWidth:         420,
-		MinHeight:        560,
-		BackgroundColour: &options.RGBA{R: 30, G: 31, B: 34, A: 255},
+		Width:            940,
+		Height:           660,
+		MinWidth:         800,
+		MinHeight:        600,
+		BackgroundColour: backgroundFor(prefs.Theme),
 		AssetServer:      &assetserver.Options{Assets: assets},
 		OnStartup:        app.startup,
+		OnShutdown:       app.shutdown,
 		Bind:             []interface{}{app},
 		SingleInstanceLock: &options.SingleInstanceLock{
-			UniqueId: "c6b0c3d6-0f63-4d64-9d1c-discordgolivebypass",
-			OnSecondInstanceLaunch: func(options.SecondInstanceData) {
-				runtime.WindowUnminimise(app.ctx)
-				runtime.WindowShow(app.ctx)
-			},
+			UniqueId:               "c6b0c3d6-0f63-4d64-9d1c-discordgolivebypass",
+			OnSecondInstanceLaunch: func(options.SecondInstanceData) { app.MostrarJanela() },
 		},
 		DragAndDrop: &options.DragAndDrop{EnableFileDrop: true, DisableWebViewDrop: true},
-		Windows:     &winopts.Options{Theme: winopts.Dark},
+		Windows:     &winopts.Options{Theme: theme},
 	})
 }
 

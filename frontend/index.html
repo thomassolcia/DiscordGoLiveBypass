@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="escuro">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,10 +7,16 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
+  <header class="barra">
     <div class="marca">
       <span class="logo" aria-hidden="true"></span>
-      <span>DiscordGoLiveBypass</span>
+      <span class="nome">DiscordGoLiveBypass</span>
+      <span class="versao" id="versao"></span>
+    </div>
+    <div class="temas" role="radiogroup" aria-label="Tema">
+      <button data-tema="sistema" title="Tema do Windows" aria-label="Tema do Windows"></button>
+      <button data-tema="claro" title="Tema claro" aria-label="Tema claro"></button>
+      <button data-tema="escuro" title="Tema escuro" aria-label="Tema escuro"></button>
     </div>
   </header>
   <main id="tela">
