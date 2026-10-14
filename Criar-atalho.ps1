@@ -26,7 +26,7 @@ $atalho = $shell.CreateShortcut($destino)
 $atalho.TargetPath = $alvo
 $atalho.Arguments = '-force'
 $atalho.WorkingDirectory = $pasta
-$atalho.Description = 'Abre o Discord por um servidor fora do Brasil'
+$atalho.Description = 'Abre o Discord com so ele passando pela VPN'
 if ($icone) { $atalho.IconLocation = $icone }
 $atalho.Save()
 

@@ -1,176 +1,80 @@
-# Mostra para onde o Discord conecta de verdade enquanto voce usa ele.
+# Confere se o tunel esta de pe e se o Discord realmente sai por ele, sem precisar de
+# administrador. Serve para mandar junto de uma issue: nada aqui mostra chave da VPN.
 #
-# Conta conexoes, nao destinos: SOCKS5 nao multiplexa, entao cada destino tunelado abre um TCP
-# proprio para o mesmo endereco do proxy.
-#
-# uso: .\Validar-rota.ps1 -Canal canary -Baseline 20 -Segundos 60
-#      fique parado na primeira janela, mande o arquivo na segunda.
+# uso: .\Validar-rota.ps1   (com o Discord aberto pelo Abrir-Discord.bat)
 
-[CmdletBinding()]
-param(
-    [int]$Segundos = 60,
-    [int]$Baseline = 20,
-    [ValidateSet("auto", "stable", "ptb", "canary")]
-    [string]$Canal = "auto"
-)
+$ErrorActionPreference = 'Continue'
+$nome = 'DiscordGoLiveBypass'
+$pasta = Join-Path $env:LOCALAPPDATA $nome
 
-$binario = switch ($Canal) {
-    "stable" { "Discord.exe" }
-    "ptb"    { "DiscordPTB.exe" }
-    "canary" { "DiscordCanary.exe" }
-    default  { "Discord%.exe" }
+function Linha($rotulo, $valor, $cor = 'Gray') {
+    Write-Host ("  {0,-22} {1}" -f $rotulo, $valor) -ForegroundColor $cor
 }
 
-$processos = Get-CimInstance Win32_Process -Filter "Name LIKE '$binario'" -ErrorAction SilentlyContinue
-if (-not $processos) {
-    Write-Host "Nao achei nenhum $binario aberto. Abra pelo launcher e rode de novo." -ForegroundColor Yellow
-    exit 1
-}
-
-$canais = @($processos | ForEach-Object { $_.Name } | Sort-Object -Unique)
-if ($canais.Count -gt 1) {
-    Write-Host "Ha mais de um canal aberto ($($canais -join ', ')). Rode com -Canal ptb (ou stable)." -ForegroundColor Yellow
-    exit 1
-}
-
-$rota = $null
-$proxy = $null
-$lista = $null
-$semQuic = $false
-foreach ($processo in $processos) {
-    $linha = $processo.CommandLine
-    if (-not $linha) { continue }
-
-    if ($linha -match '--proxy-bypass-list=([^\s"]+)') { $lista = $matches[1] }
-    if ($linha -match 'disable-quic') { $semQuic = $true }
-
-    if ($linha -match '--proxy-server=([^\s"]+)') {
-        $rota = "--proxy-server $($matches[1])"
-        if ($matches[1] -match '(\d+\.\d+\.\d+\.\d+):(\d+)') { $proxy = "$($matches[1]):$($matches[2])" }
-        break
-    }
-    if ($linha -match '--proxy-pac-url=file:///([^\s"]+)') {
-        $arquivo = $matches[1] -replace '/', '\'
-        $rota = "--proxy-pac-url $arquivo"
-        if (Test-Path $arquivo) {
-            $conteudo = Get-Content $arquivo -Raw
-            if ($conteudo -match '(?:SOCKS5|PROXY|HTTPS)\s+(\d+\.\d+\.\d+\.\d+:\d+)') { $proxy = $matches[1] }
-        }
-        break
+function Trace($url) {
+    try {
+        $corpo = (Invoke-WebRequest -UseBasicParsing -TimeoutSec 10 -Uri $url).Content
+        $loc = if ($corpo -match '(?m)^loc=(\w+)') { $matches[1] } else { '?' }
+        $ip = if ($corpo -match '(?m)^ip=(\S+)') { $matches[1] } else { '?' }
+        return "$loc ($ip)"
+    } catch {
+        return "falhou: $($_.Exception.Message)"
     }
 }
 
-if (-not $rota) {
-    Write-Host "Este Discord foi aberto sem flag de proxy: nada para validar." -ForegroundColor Yellow
-    Write-Host "Feche-o por inteiro e abra pelo Abrir-Discord.bat." -ForegroundColor Yellow
-    exit 1
-}
-
-$pids = @($processos | ForEach-Object { $_.ProcessId })
-Write-Host ""
-Write-Host "  rota      $rota"
-Write-Host "  proxy     $(if ($proxy) { $proxy } else { 'nao consegui extrair o endereco' })"
-Write-Host "  canal     $($canais[0]), $($pids.Count) processos"
-if ($lista) {
-    Write-Host "  bypass    $lista"
-    if ($lista -match 'storage\.googleapis\.com') {
-        Write-Host "  braco     lista NOVA, com o bucket de upload" -ForegroundColor Green
-    } else {
-        Write-Host "  braco     lista ANTIGA, sem o bucket de upload" -ForegroundColor Yellow
-    }
-}
-Write-Host ""
-
-function Coletar($pids, $segundos) {
-    $conexoes = @{}
-    $fim = (Get-Date).AddSeconds($segundos)
-    while ((Get-Date) -lt $fim) {
-        foreach ($c in Get-NetTCPConnection -ErrorAction SilentlyContinue | Where-Object { $pids -contains $_.OwningProcess }) {
-            $remoto = $c.RemoteAddress
-            if ($remoto -in @('0.0.0.0', '::', '127.0.0.1', '::1')) { continue }
-
-            $conexoes["$($c.LocalPort)|$remoto`:$($c.RemotePort)"] = $remoto
-        }
-        Start-Sleep -Milliseconds 250
-    }
-    return $conexoes
-}
-
-Write-Host "  NAO mexa no Discord. Medindo o normal por $Baseline segundos..." -ForegroundColor Cyan
-$antes = Coletar $pids $Baseline
-
-Write-Host "  Agora MANDE o arquivo. Olhando por $Segundos segundos..." -ForegroundColor Cyan
-$depois = Coletar $pids $Segundos
-
-if ($depois.Count -eq 0) {
-    Write-Host "  Nenhuma conexao vista. O Discord estava mesmo aberto?" -ForegroundColor Yellow
-    exit 1
-}
-
-function Dono($endereco, $nome) {
-    switch -Regex ("$endereco $nome") {
-        '^2800:3f0|^2a00:1450|^142\.250\.|^172\.217\.|^74\.125\.|^34\.|^35\.|1e100\.net|googleusercontent' { return "Google" }
-        '^2606:4700|^162\.159\.|^104\.1[6-9]\.|^104\.2[0-9]\.|cloudflare' { return "Cloudflare" }
-    }
-    return ""
-}
-
-$destinos = @{}
-foreach ($par in @(@{ Mapa = $antes; Campo = "Antes" }, @{ Mapa = $depois; Campo = "Depois" })) {
-    foreach ($chave in $par.Mapa.Keys) {
-        $endereco = ($chave -split '\|', 2)[1]
-        if (-not $destinos.ContainsKey($endereco)) {
-            $destinos[$endereco] = [pscustomobject]@{
-                Endereco = $endereco
-                Destino  = $par.Mapa[$chave]
-                Antes    = 0
-                Depois   = 0
-            }
-        }
-        $destinos[$endereco].($par.Campo) += 1
+# A mesma pergunta que o launcher faz: o pais que o proprio Discord diz enxergar.
+function PaisDoDiscord {
+    try {
+        $resposta = Invoke-RestMethod -TimeoutSec 10 -Uri 'https://discord.com/api/v9/auth/location-metadata'
+        return $resposta.country_code
+    } catch {
+        return "falhou: $($_.Exception.Message)"
     }
 }
 
-$linhas = foreach ($item in $destinos.Values) {
-    $nome = try { (Resolve-DnsName $item.Destino -Type PTR -ErrorAction Stop | Select-Object -First 1).NameHost } catch { "" }
-    [pscustomobject]@{
-        Endereco = $item.Endereco
-        Dono     = Dono $item.Destino $nome
-        Rota     = if ($proxy -and $item.Endereco -eq $proxy) { "pelo proxy" } else { "direto" }
-        Antes    = $item.Antes
-        Durante  = $item.Depois
-    }
-}
-
-Write-Host ""
-Write-Host "  Conexoes distintas em cada janela ($Baseline s parado, $Segundos s mandando):"
-$linhas | Sort-Object Rota, Endereco | Format-Table -AutoSize
-
-$taxaAntes = { param($n) if ($Baseline -gt 0) { [math]::Round($n / $Baseline, 2) } else { 0 } }
-$taxaDepois = { param($n) if ($Segundos -gt 0) { [math]::Round($n / $Segundos, 2) } else { 0 } }
-
-$googleDireto = @($linhas | Where-Object { $_.Dono -eq "Google" -and $_.Rota -eq "direto" })
-$googleNovo = @($googleDireto | Where-Object { (& $taxaDepois $_.Durante) -gt (& $taxaAntes $_.Antes) })
-$peloProxy = @($linhas | Where-Object { $_.Rota -eq "pelo proxy" })
-$proxySubiu = @($peloProxy | Where-Object { (& $taxaDepois $_.Durante) -gt (& $taxaAntes $_.Antes) * 1.5 })
-
-Write-Host ""
-if ($googleNovo.Count -gt 0) {
-    Write-Host "  CONFIRMADO: o Google recebeu mais conexoes por fora do proxy enquanto o" -ForegroundColor Green
-    Write-Host "  arquivo subia. E o bucket do anexo, e o curinga do bypass casou." -ForegroundColor Green
-} elseif ($proxySubiu.Count -gt 0) {
-    Write-Host "  NAO CONFIRMADO: quem recebeu conexoes novas foi o proxy, nao o Google." -ForegroundColor Red
-    Write-Host "  O anexo continua subindo pelo tunel, e o curinga nao esta casando." -ForegroundColor Red
+Write-Host ''
+$estado = $null
+$arquivo = Join-Path $pasta 'tunnel.json'
+if (Test-Path -LiteralPath $arquivo) {
+    $estado = Get-Content -Raw -LiteralPath $arquivo | ConvertFrom-Json
+    $vivo = [bool](Get-Process -Id $estado.pid -ErrorAction SilentlyContinue)
+    Linha 'estado do tunel' "$($estado.phase), pid $($estado.pid), $(if ($vivo) { 'rodando' } else { 'nao esta rodando' })"
+    if ($estado.error) { Linha 'erro' $estado.error 'Red' }
+    if ($estado.endpoint) { Linha 'servidor' $estado.endpoint }
+    if ($estado.routes) { Linha 'faixas no tunel' $estado.routes }
 } else {
-    Write-Host "  INCONCLUSIVO: nada mudou entre as duas janelas." -ForegroundColor Yellow
-    if ($semQuic) {
-        Write-Host "  O QUIC ja esta desligado, entao nao ha caminho de fuga por UDP: ou o" -ForegroundColor Yellow
-        Write-Host "  arquivo nao subiu dentro da janela, ou reusou conexao ja aberta." -ForegroundColor Yellow
-        Write-Host "  Use o teste de cronometro do protocolo, que nao depende de ver conexao." -ForegroundColor Yellow
-    } else {
-        Write-Host "  Isto aqui so ve TCP, e o Chromium fala QUIC (UDP) com o Google. Reabra" -ForegroundColor Yellow
-        Write-Host "  assim para tirar a cegueira e rode de novo:" -ForegroundColor Yellow
-        Write-Host "      .\discordgolivebypass.exe -channel canary -force -- --disable-quic" -ForegroundColor Yellow
-        Write-Host "  Se ainda assim nada mudar, use o teste de cronometro do protocolo." -ForegroundColor Yellow
-    }
+    Linha 'estado do tunel' 'nenhum ainda, o launcher nunca subiu o tunel nesta conta' 'Yellow'
 }
+
+$adaptador = Get-NetAdapter -Name $nome -ErrorAction SilentlyContinue
+Linha 'adaptador' $(if ($adaptador) { "$($adaptador.Status), $($adaptador.InterfaceDescription)" } else { 'nao existe agora' }) $(if ($adaptador) { 'Gray' } else { 'Yellow' })
+
+Write-Host ''
+Write-Host '  Por onde cada destino sai neste momento:'
+$amostras = [ordered]@{
+    'API e gateway'          = '162.159.128.233'
+    'voz e video no Brasil'  = '66.22.200.10'
+    'voz e video na Europa'  = '66.22.243.10'
+    'controle: 1.1.1.1'      = '1.1.1.1'
+}
+foreach ($rotulo in $amostras.Keys) {
+    $rota = Find-NetRoute -RemoteIPAddress $amostras[$rotulo] -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceAlias } | Select-Object -First 1
+    $interface = if ($rota) { $rota.InterfaceAlias } else { 'sem rota' }
+    $noTunel = $interface -eq $nome
+    $esperado = if ($rotulo -like 'controle*') { -not $noTunel } else { $noTunel }
+    Linha $rotulo $interface $(if ($esperado) { 'Green' } else { 'Red' })
+}
+
+Write-Host ''
+Write-Host '  Pais que cada servico enxerga:'
+Linha 'Discord' (PaisDoDiscord)
+Linha 'gateway do Discord' (Trace 'https://gateway.discord.gg/cdn-cgi/trace')
+Linha 'resto do PC' (Trace 'https://www.cloudflare.com/cdn-cgi/trace')
+
+$log = Join-Path $pasta 'tunnel.log'
+if (Test-Path -LiteralPath $log) {
+    Write-Host ''
+    Write-Host '  Ultimas linhas do registro do tunel:'
+    Get-Content -LiteralPath $log -Tail 12 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+}
+Write-Host ''
