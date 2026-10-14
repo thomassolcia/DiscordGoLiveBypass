@@ -451,7 +451,7 @@ func ensureTunnel(confPath, watch string, excluded map[string]bool, ui *UI) (tun
 		if old.ConfHash == hash {
 			touchHold(dir)
 			ui.Busy("o tunel da ultima abertura continua ligado, conferindo a saida")
-			exit, err := verifyExit(excluded)
+			exit, err := verifyExit(excluded, ui)
 			if err == nil {
 				ui.Ok("tunel da ultima abertura reaproveitado")
 				return tunnelResult{exit, true, old.PID, dir}, nil
@@ -486,7 +486,7 @@ func ensureTunnel(confPath, watch string, excluded map[string]bool, ui *UI) (tun
 	ui.Ok("tunel ligado, %d faixas de IP do Discord passam por ele", state.Routes)
 
 	ui.Busy("conferindo por onde o Discord vai sair")
-	tun.exit, err = verifyExit(excluded)
+	tun.exit, err = verifyExit(excluded, ui)
 	if err != nil {
 		tun.stop()
 		return tun, err
@@ -494,11 +494,16 @@ func ensureTunnel(confPath, watch string, excluded map[string]bool, ui *UI) (tun
 	return tun, nil
 }
 
-// O primeiro pedido pelo túnel é o que dispara o handshake com o servidor, então uma falha
-// logo de cara ainda não quer dizer nada.
-func verifyExit(excluded map[string]bool) (exitInfo, error) {
+// No primeiro teste de verdade, a conferência pelo location-metadata voltou com EOF nas três
+// tentativas feitas logo que o túnel ficou pronto, sem causa clara: a mesma consulta passou
+// minutos depois, e o trace do gateway passou já na primeira. Por isso a conferência insiste
+// por um prazo, e cada falha aparece na tela, para o próximo relato já vir com a causa.
+const exitCheckWindow = 20 * time.Second
+
+func verifyExit(excluded map[string]bool, ui *UI) (exitInfo, error) {
+	deadline := time.Now().Add(exitCheckWindow)
 	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
+	for attempt := 1; ; attempt++ {
 		exit, err := CheckExit(10 * time.Second)
 		if err == nil {
 			if excluded[exit.Country] {
@@ -507,7 +512,11 @@ func verifyExit(excluded map[string]bool) (exitInfo, error) {
 			return exit, nil
 		}
 		lastErr = err
-		time.Sleep(time.Second)
+		ui.Detail("tentativa %d sem resposta: %s", attempt, DescribeNetwork(err))
+		if time.Now().Add(2 * time.Second).After(deadline) {
+			break
+		}
+		time.Sleep(2 * time.Second)
 	}
 	return exitInfo{}, fmt.Errorf("o tunel subiu, mas o Discord nao respondeu por ele: %s. Costuma ser servidor da VPN fora do ar ou arquivo .conf antigo: gere outro no site da VPN e rode com -conf", DescribeNetwork(lastErr))
 }
