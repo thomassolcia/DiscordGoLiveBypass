@@ -19,6 +19,8 @@ go vet ./...
 go test ./...
 ```
 
+Alguns testes mexem em coisas de verdade e só rodam quando pedidos por variável de ambiente: `DGLB_REDE=1` consulta o Discord e o `/auth/info` do Proton (com um usuário inventado, sem senha), `DGLB_JANELA=1` abre a janela de verificação com uma página de teste e `DGLB_BANDEJA=1` põe um ícone de teste na bandeja. Rode o que tiver a ver com a sua mudança, por exemplo `DGLB_REDE=1 go test -run AoVivo`.
+
 Para gerar o executável igual ao da release, com o driver WireGuardNT embutido:
 
 ```
@@ -27,13 +29,16 @@ Para gerar o executável igual ao da release, com o driver WireGuardNT embutido:
 
 Testar o túnel de verdade pede três coisas que a CI não tem: administrador, um Discord instalado e um arquivo WireGuard seu. Se a sua mudança mexe no serviço, no túnel ou nas rotas (`service_windows.go`, `engine_windows.go`, `state.go`, `routes.go`), rode o programa compilado, ative, abra uma call e diga no pull request o que você testou: assistir a uma transmissão, transmitir, desligar e ligar o túnel pela janela. Se mexe na janela (`gui_windows.go`, `tray_windows.go` ou `frontend/`), confira os dois temas e a bandeja. O `Validar-rota.ps1` ajuda a mostrar que o tráfego saiu pelo adaptador certo.
 
+Se mexe no login do Proton (`proton.go`, `gui_proton_windows.go`, `captcha_windows.go`), teste com uma conta sua, gratuita serve, e conte no pull request se ela tinha verificação em duas etapas e se apareceu a verificação de robô. Os testes cobrem a conversão de chave e a montagem do arquivo, mas o Proton muda as regras do login sem avisar e só uma conta de verdade mostra isso.
+
 ## Como o código é escrito
 
 - Mensagens que aparecem no console vão sem acento, porque muita máquina ainda abre o console numa codepage antiga. Comentários e documentação podem ter acento.
 - Comentário só quando explica o porquê de algo que o código não deixa claro. Comentar o que a linha faz não ajuda quem lê.
 - Mensagem de erro diz o que aconteceu e o que a pessoa pode fazer. Se ela for nova, ganha uma entrada no FAQ do README com o texto que aparece na tela.
 - Nenhuma chave em log ou mensagem, nem quando o erro vem de uma biblioteca: o parser oficial do WireGuard repete a chave malformada no erro, e o `redactKeys` existe por isso.
-- Sem dependência nova sem necessidade. Hoje só entram o `x/sys` e as bibliotecas oficiais do WireGuard.
+- Nenhuma senha, token ou código de duas etapas em log, arquivo ou mensagem de erro. A sessão do Proton vive só na memória e é encerrada assim que o arquivo é gerado.
+- Sem dependência nova sem necessidade. Hoje entram o `x/sys`, as bibliotecas oficiais do WireGuard, o Wails para a janela e o `go-srp` do próprio Proton para o login.
 - Rode `gofmt` antes do commit.
 
 ## Commits
