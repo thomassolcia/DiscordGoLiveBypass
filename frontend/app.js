@@ -21,7 +21,13 @@ const s = {
   confirmandoRemocao: false,
   pedidoFechar: null,
   lembrarFechar: false,
+  proton: novoProton(),
 };
+
+// Estado do login no Proton. A senha só existe aqui enquanto o login não termina.
+function novoProton(aba = 'arquivo') {
+  return { aba, etapa: 'login', email: '', senha: '', codigo: '', paises: [], pais: '', erro: '' };
+}
 
 const sobreposicao = document.getElementById('sobreposicao');
 
@@ -223,6 +229,59 @@ function listaArquivos() {
   return html + '</div>';
 }
 
+function abasArquivo() {
+  const aba = s.proton.aba;
+  return `<div class="abas" role="tablist">
+      <button role="tab" data-aba="arquivo" aria-selected="${aba === 'arquivo'}">Tenho o arquivo .conf</button>
+      <button role="tab" data-aba="proton" aria-selected="${aba === 'proton'}">Entrar com o Proton</button>
+    </div>`;
+}
+
+function formProton() {
+  const p = s.proton;
+  const ocupado = s.ocupado === 'proton';
+  const erro = p.erro ? `<div class="faixa erro"><span>${esc(frase(p.erro))}</span></div>` : '';
+
+  if (p.etapa === 'verificacao') {
+    return `<div class="esperando">${icone('gira')}<span>O Proton pediu uma verificação de segurança. Resolva na janela que abriu: ela fecha sozinha quando terminar.</span></div>`;
+  }
+
+  if (p.etapa === 'codigo') {
+    return `<div class="formulario">${erro}
+        <label class="campo"><span>Código de verificação em duas etapas</span>
+          <input class="codigo" data-campo="codigo" inputmode="numeric" maxlength="7" autocomplete="one-time-code" value="${esc(p.codigo)}" placeholder="000000"></label>
+        <div class="linha-acoes">
+          <button class="link" data-acao="proton-cancelar">Voltar</button>
+          <button class="principal" data-acao="proton-entrar" ${ocupado ? 'disabled' : ''}>${ocupado ? 'Conferindo…' : 'Confirmar'}</button>
+        </div>
+      </div>`;
+  }
+
+  if (p.etapa === 'paises') {
+    const automatico = p.paises.length ? `Automático: ${p.paises[0].melhor}, o melhor agora` : 'Automático';
+    const opcoes = p.paises.map((pais) => `<option value="${esc(pais.code)}" ${p.pais === pais.code ? 'selected' : ''}>
+        ${esc(pais.label)} · ${pais.quantos} ${pais.quantos === 1 ? 'servidor' : 'servidores'}</option>`).join('');
+    return `<div class="formulario">${erro}
+        <label class="campo"><span>Servidor gratuito</span>
+          <select data-campo="pais"><option value="" ${p.pais === '' ? 'selected' : ''}>${esc(automatico)}</option>${opcoes}</select></label>
+        <div class="linha-acoes">
+          <button class="link" data-acao="proton-cancelar">Cancelar</button>
+          <button class="principal" data-acao="proton-gerar" ${ocupado ? 'disabled' : ''}>${ocupado ? 'Gerando…' : 'Gerar o arquivo'}</button>
+        </div>
+      </div>`;
+  }
+
+  return `<div class="formulario">${erro}
+      <label class="campo"><span>E-mail da conta do Proton</span>
+        <input type="email" data-campo="email" autocomplete="username" value="${esc(p.email)}"></label>
+      <label class="campo"><span>Senha</span>
+        <input type="password" data-campo="senha" autocomplete="current-password" value="${esc(p.senha)}"></label>
+      <button class="principal largo" data-acao="proton-entrar" ${ocupado ? 'disabled' : ''}>${ocupado ? 'Entrando…' : 'Entrar'}</button>
+      <p class="pequeno">A senha só serve para entrar: ela não é gravada, e a sessão é encerrada assim que o arquivo da VPN é gerado.
+        Ainda não tem conta? <button class="link pequeno" data-acao="proton-criar">Crie uma grátis</button></p>
+    </div>`;
+}
+
 function marcarAbrirDiscord() {
   const nome = s.app?.discord || 'Discord';
   return `<label class="marcar">
@@ -255,6 +314,7 @@ function telaInicial() {
             <li>Escolha <b>Windows</b> e um servidor gratuito fora do Brasil.</li>
             <li>Clique em <b>Create</b> e baixe. O arquivo aparece aqui sozinho.</li>
           </ol>
+          <p class="pequeno">Prefere não baixar nada? Na aba <b>Entrar com o Proton</b>, o programa gera o arquivo com a sua conta.</p>
           <button class="link" data-acao="proton">${icone('externo')} Abrir a página do Proton</button>
         </div>
       </section>
@@ -262,9 +322,11 @@ function telaInicial() {
       <div class="coluna">
         <section class="cartao">
           <h2><span class="passo">1</span> Arquivo da VPN</h2>
-          ${listaArquivos()}
-          ${s.escolhido?.error ? `<div class="faixa erro"><span>${esc(frase(s.escolhido.error))}</span></div>` : ''}
-          ${zonaSoltar('Arraste o arquivo <b>.conf</b> para cá')}
+          ${abasArquivo()}
+          ${s.proton.aba === 'proton' ? formProton() : `
+            ${listaArquivos()}
+            ${s.escolhido?.error ? `<div class="faixa erro"><span>${esc(frase(s.escolhido.error))}</span></div>` : ''}
+            ${zonaSoltar('Arraste o arquivo <b>.conf</b> para cá')}`}
         </section>
         <section class="cartao">
           <h2><span class="passo">2</span> Ativar</h2>
@@ -355,7 +417,7 @@ function cartaoEstado(st) {
 
 function painel() {
   const st = s.app.status;
-  const trocar = s.escolhido && !s.escolhido.error && s.escolhido.origin === 'escolhido';
+  const trocar = s.escolhido && !s.escolhido.error && ['escolhido', 'proton'].includes(s.escolhido.origin);
   const handshake = st.handshake_s < 0 ? 'nenhum ainda' : `há ${st.handshake_s} s`;
 
   return `${avisos()}
@@ -388,7 +450,10 @@ function painel() {
             <span class="confirmar"><button class="principal" data-acao="trocar">Trocar</button>
             <button data-acao="cancelar-troca">Cancelar</button></span></div>` : ''}
           ${s.escolhido?.error ? `<div class="faixa erro"><span>${esc(frase(s.escolhido.error))}</span></div>` : ''}
-          ${zonaSoltar('Para trocar de servidor, arraste outro <b>.conf</b>')}
+          ${s.proton.aba === 'proton' ? formProton() : `
+            ${zonaSoltar('Para trocar de servidor, arraste outro <b>.conf</b>')}
+            <p></p>
+            <button class="link" data-aba="proton">Gerar outro pela conta do Proton</button>`}
         </section>
         <details class="cartao">
           <summary>Detalhes técnicos</summary>
@@ -439,12 +504,42 @@ function modalFechar() {
     </div>`;
 }
 
+// A tela é redesenhada a cada consulta ao serviço. Quem está digitando não pode perder o
+// foco nem o cursor no meio disso: os valores já ficam guardados em s.proton a cada tecla,
+// e o campo ativo é devolvido depois de desenhar.
 function desenhar() {
   if (!s.app) return;
+  const ativo = document.activeElement?.dataset?.campo;
+  const cursor = ativo ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
+
   document.getElementById('versao').textContent = s.app.version;
   tela.innerHTML = configurado() ? painel() : telaInicial();
   rodape.innerHTML = desenharRodape();
   sobreposicao.innerHTML = modalFechar();
+
+  if (ativo) {
+    const campo = tela.querySelector(`[data-campo="${ativo}"]`);
+    if (campo) {
+      campo.focus();
+      if (cursor && cursor[0] !== null && campo.setSelectionRange) campo.setSelectionRange(cursor[0], cursor[1]);
+    }
+  }
+}
+
+// Como acao(), mas o erro aparece dentro do formulário do Proton, onde a pessoa está olhando.
+async function acaoProton(fn) {
+  if (s.ocupado) return;
+  s.ocupado = 'proton';
+  s.proton.erro = '';
+  desenhar();
+  try {
+    await fn();
+  } catch (e) {
+    s.proton.erro = String(e);
+    if (s.proton.etapa === 'verificacao') s.proton.etapa = 'login';
+  }
+  s.ocupado = '';
+  desenhar();
 }
 
 // Ações -------------------------------------------------------------------------------
@@ -496,12 +591,45 @@ const acoes = {
     s.pedidoFechar = null;
   }),
   'fechar-cancelar': () => { s.pedidoFechar = null; s.lembrarFechar = false; desenhar(); },
+  'proton-criar': () => go().AbrirCadastroProton(),
+  'proton-entrar': () => acaoProton(async () => {
+    const p = s.proton;
+    const resposta = await go().ProtonEntrar({ email: p.email, senha: p.senha, codigo: p.codigo });
+    if (resposta.etapa === 'codigo') {
+      if (p.etapa === 'codigo' && p.codigo) p.erro = 'código de verificação incorreto ou vencido, confira no aplicativo e tente de novo';
+      p.etapa = 'codigo';
+      return;
+    }
+    // Daqui em diante a senha não serve para mais nada.
+    p.senha = '';
+    p.codigo = '';
+    p.paises = resposta.paises;
+    p.pais = '';
+    p.etapa = 'paises';
+  }),
+  'proton-gerar': () => acaoProton(async () => {
+    const info = await go().ProtonGerar(s.proton.pais);
+    s.candidatos = [info, ...s.candidatos.filter((c) => c.origin !== 'proton')];
+    s.escolhido = info;
+    s.proton = novoProton('arquivo');
+  }),
+  'proton-cancelar': () => {
+    go().ProtonCancelar();
+    s.proton = { ...novoProton('proton'), email: s.proton.email };
+    desenhar();
+  },
 };
 
 document.addEventListener('click', (evento) => {
   const tema = evento.target.closest('[data-tema]');
   if (tema) {
     salvarPreferencias({ tema: tema.dataset.tema });
+    return;
+  }
+  const aba = evento.target.closest('[data-aba]');
+  if (aba) {
+    if (s.ocupado !== 'proton') s.proton.aba = aba.dataset.aba;
+    desenhar();
     return;
   }
   const alvo = evento.target.closest('[data-acao], [data-arquivo]');
@@ -528,10 +656,23 @@ document.addEventListener('change', (evento) => {
 
 document.addEventListener('keydown', (evento) => {
   if (evento.key === 'Escape' && s.pedidoFechar) acoes['fechar-cancelar']();
+  if (evento.key === 'Enter' && evento.target.matches('input[data-campo]')) {
+    evento.preventDefault();
+    acoes['proton-entrar']();
+  }
+});
+
+document.addEventListener('input', (evento) => {
+  const campo = evento.target.closest('[data-campo]');
+  if (campo) s.proton[campo.dataset.campo] = campo.value;
 });
 
 window.runtime.EventsOn('arquivo-solto', (info) => escolher(info));
 window.runtime.EventsOn('atualizar', () => atualizar());
+window.runtime.EventsOn('proton-verificacao', () => {
+  s.proton.etapa = 'verificacao';
+  desenhar();
+});
 window.runtime.EventsOn('pedido-fechar', (temBandeja) => {
   s.pedidoFechar = { bandeja: Boolean(temBandeja) };
   desenhar();

@@ -47,6 +47,12 @@ type App struct {
 	last     AppState
 	hidden   bool
 	quitting bool
+
+	// Login do Proton em andamento e o arquivo que ele gerou, ainda só na memória.
+	proton        *protonClient
+	protonServers []protonServer
+	protonConf    string
+	protonInfo    ConfInfo
 }
 
 type ConfInfo struct {
@@ -432,6 +438,9 @@ func (a *App) LerArquivo(path string) ConfInfo {
 // .conf de WireGuard recém-baixados. Só entram os que passam na validação.
 func (a *App) Candidatos() []ConfInfo {
 	list := []ConfInfo{}
+	if info, ok := a.pendingProton(); ok {
+		list = append(list, info)
+	}
 	seen := map[string]bool{}
 	add := func(path, origin string) {
 		key := strings.ToLower(path)
@@ -515,6 +524,17 @@ func (a *App) install() error {
 
 func (a *App) sendConf(path string) error {
 	if path == "" {
+		return nil
+	}
+	if path == protonConfPath {
+		text, ok := a.protonConfText()
+		if !ok {
+			return errors.New("o arquivo gerado pelo Proton não está mais na memória, gere de novo")
+		}
+		if _, err := callService(ipcRequest{Cmd: cmdSetConf, Conf: text}, 30*time.Second); err != nil {
+			return err
+		}
+		a.forgetProtonConf()
 		return nil
 	}
 	text, err := readConfFile(path)
