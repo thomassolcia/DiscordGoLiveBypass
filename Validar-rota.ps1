@@ -1,14 +1,13 @@
 # Confere se o tunel esta de pe e se o Discord realmente sai por ele, sem precisar de
 # administrador. Serve para mandar junto de uma issue: nada aqui mostra chave da VPN.
 #
-# uso: .\Validar-rota.ps1   (com o Discord aberto pelo Abrir-Discord.bat)
+# uso: .\Validar-rota.ps1   (com o Discord aberto)
 
 $ErrorActionPreference = 'Continue'
 $nome = 'DiscordGoLiveBypass'
-$pasta = Join-Path $env:LOCALAPPDATA $nome
 
 function Linha($rotulo, $valor, $cor = 'Gray') {
-    Write-Host ("  {0,-22} {1}" -f $rotulo, $valor) -ForegroundColor $cor
+    Write-Host ("  {0,-24} {1}" -f $rotulo, $valor) -ForegroundColor $cor
 }
 
 function Trace($url) {
@@ -22,28 +21,33 @@ function Trace($url) {
     }
 }
 
-# A mesma pergunta que o launcher faz: o pais que o proprio Discord diz enxergar.
-function PaisDoDiscord {
-    try {
-        $resposta = Invoke-RestMethod -TimeoutSec 10 -Uri 'https://discord.com/api/v9/auth/location-metadata'
-        return $resposta.country_code
-    } catch {
-        return "falhou: $($_.Exception.Message)"
-    }
+Write-Host ''
+$servico = Get-Service -Name $nome -ErrorAction SilentlyContinue
+if ($servico) {
+    Linha 'servico' "$($servico.Status), inicio $($servico.StartType)" $(if ($servico.Status -eq 'Running') { 'Gray' } else { 'Yellow' })
+} else {
+    Linha 'servico' 'nao instalado' 'Yellow'
 }
 
-Write-Host ''
-$estado = $null
-$arquivo = Join-Path $pasta 'tunnel.json'
-if (Test-Path -LiteralPath $arquivo) {
-    $estado = Get-Content -Raw -LiteralPath $arquivo | ConvertFrom-Json
-    $vivo = [bool](Get-Process -Id $estado.pid -ErrorAction SilentlyContinue)
-    Linha 'estado do tunel' "$($estado.phase), pid $($estado.pid), $(if ($vivo) { 'rodando' } else { 'nao esta rodando' })"
-    if ($estado.error) { Linha 'erro' $estado.error 'Red' }
-    if ($estado.endpoint) { Linha 'servidor' $estado.endpoint }
-    if ($estado.routes) { Linha 'faixas no tunel' $estado.routes }
-} else {
-    Linha 'estado do tunel' 'nenhum ainda, o launcher nunca subiu o tunel nesta conta' 'Yellow'
+# O mesmo canal que a janela usa, so com o pedido de estado, que nao carrega nada da VPN.
+if ($servico.Status -eq 'Running') {
+    try {
+        $canal = New-Object System.IO.Pipes.NamedPipeClientStream('.', $nome, [System.IO.Pipes.PipeDirection]::InOut)
+        $canal.Connect(3000)
+        $escrita = New-Object System.IO.StreamWriter($canal)
+        $escrita.AutoFlush = $true
+        $escrita.WriteLine('{"cmd":"status"}')
+        $st = ((New-Object System.IO.StreamReader($canal)).ReadLine() | ConvertFrom-Json).status
+        $canal.Dispose()
+
+        Linha 'estado do tunel' "$($st.state), ligado: $($st.enabled), versao $($st.version)" $(if ($st.state -eq 'ligado') { 'Green' } else { 'Yellow' })
+        if ($st.error) { Linha 'erro' $st.error 'Red' }
+        if ($st.server) { Linha 'servidor' "$($st.server) ($($st.endpoint))" }
+        Linha 'ultimo handshake' $(if ($st.handshake_s -lt 0) { 'nenhum ainda' } else { "ha $($st.handshake_s) s" })
+        Linha 'faixas no tunel' $st.routes
+    } catch {
+        Linha 'estado do tunel' "o servico nao respondeu: $($_.Exception.Message)" 'Yellow'
+    }
 }
 
 $adaptador = Get-NetAdapter -Name $nome -ErrorAction SilentlyContinue
@@ -67,14 +71,15 @@ foreach ($rotulo in $amostras.Keys) {
 
 Write-Host ''
 Write-Host '  Pais que cada servico enxerga:'
-Linha 'Discord' (PaisDoDiscord)
 Linha 'gateway do Discord' (Trace 'https://gateway.discord.gg/cdn-cgi/trace')
 Linha 'resto do PC' (Trace 'https://www.cloudflare.com/cdn-cgi/trace')
 
-$log = Join-Path $pasta 'tunnel.log'
+$log = Join-Path $env:APPDATA "$nome\janela.log"
 if (Test-Path -LiteralPath $log) {
     Write-Host ''
-    Write-Host '  Ultimas linhas do registro do tunel:'
-    Get-Content -LiteralPath $log -Tail 12 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+    Write-Host '  Ultimas linhas do registro da janela:'
+    Get-Content -LiteralPath $log -Tail 8 -Encoding UTF8 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
 }
+Write-Host ''
+Write-Host '  O registro do servico fica em C:\ProgramData\DiscordGoLiveBypass\tunnel.log e so abre como administrador.' -ForegroundColor DarkGray
 Write-Host ''

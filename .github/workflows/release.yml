@@ -44,7 +44,7 @@ jobs:
           $versao = $env:VERSAO
           $zip = "DiscordGoLiveBypass-$versao-windows-amd64.zip"
 
-          Compress-Archive -Force -DestinationPath $zip -Path DiscordGoLiveBypass.exe, Abrir-Discord.bat, Criar-atalho.ps1, Validar-rota.ps1, README.md, LICENSE, LICENCA-WireGuardNT.txt
+          Compress-Archive -Force -DestinationPath $zip -Path DiscordGoLiveBypass.exe, Validar-rota.ps1, README.md, LICENSE, LICENCA-WireGuardNT.txt
 
           $linhas = foreach ($arquivo in @($zip, 'DiscordGoLiveBypass.exe')) {
             '{0}  {1}' -f (Get-FileHash $arquivo -Algorithm SHA256).Hash, $arquivo

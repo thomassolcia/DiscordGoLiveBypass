@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -102,36 +103,6 @@ func findConfCandidates(dirs []string) []confCandidate {
 	return found
 }
 
-// A cópia fica na pasta do usuário para as próximas aberturas não dependerem do arquivo
-// continuar nos Downloads. Ela carrega a chave privada, então só o dono lê.
-func storeConf(src string) (string, error) {
-	dest, err := storedConfPath()
-	if err != nil {
-		return "", err
-	}
-	if same, _ := sameFile(src, dest); same {
-		return dest, nil
-	}
-
-	raw, err := os.ReadFile(src)
-	if err != nil {
-		return "", err
-	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0o700); err != nil {
-		return "", err
-	}
-
-	tmp := dest + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
-		return "", err
-	}
-	if err := os.Rename(tmp, dest); err != nil {
-		os.Remove(tmp)
-		return "", err
-	}
-	return dest, nil
-}
-
 func sameFile(a, b string) (bool, error) {
 	ia, err := os.Stat(a)
 	if err != nil {
@@ -142,4 +113,15 @@ func sameFile(a, b string) (bool, error) {
 		return false, err
 	}
 	return os.SameFile(ia, ib), nil
+}
+
+// O Proton escreve o nome do servidor como comentário logo depois do [Peer], como
+// "# US-FREE#57". É o que a pessoa reconhece, bem mais que um IP.
+var peerLabelRe = regexp.MustCompile(`(?mi)^\s*\[Peer\]\s*\r?\n(?:\s*\r?\n)*\s*#\s*([^\r\n]{1,64}?)\s*$`)
+
+func serverLabel(text string) string {
+	if match := peerLabelRe.FindStringSubmatch(text); match != nil {
+		return match[1]
+	}
+	return ""
 }

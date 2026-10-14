@@ -5,10 +5,8 @@ package main
 import (
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -17,7 +15,7 @@ import (
 var procShellExecuteEx = windows.NewLazySystemDLL("shell32.dll").NewProc("ShellExecuteExW")
 
 // SHELLEXECUTEINFOW. O x/sys só expõe o ShellExecute simples, que não devolve o processo
-// criado, e sem ele não dá para saber se o túnel morreu antes de ficar pronto.
+// criado, e sem ele não dá para esperar a instalação terminar nem ler o resultado.
 type shellExecuteInfo struct {
 	cbSize         uint32
 	fMask          uint32
@@ -40,107 +38,43 @@ const (
 	seeMaskNoCloseProcess = 0x00000040
 	seeMaskNoAsync        = 0x00000100
 	seeMaskFlagNoUI       = 0x00000400
-
-	stillActive = 259
 )
+
+var errElevationDenied = errors.New("a permissão de administrador foi negada")
 
 func isElevated() bool {
 	return windows.GetCurrentProcessToken().IsElevated()
 }
 
-func processAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
-	if err != nil {
-		// Acesso negado vem de um processo que existe mas é de outro usuário.
-		return errors.Is(err, windows.ERROR_ACCESS_DENIED)
-	}
-	defer windows.CloseHandle(handle)
-
-	var code uint32
-	if err := windows.GetExitCodeProcess(handle, &code); err != nil {
-		return false
-	}
-	return code == stillActive
-}
-
-func processImageBase(pid int) string {
-	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
-	if err != nil {
-		return ""
-	}
-	defer windows.CloseHandle(handle)
-
-	buf := make([]uint16, windows.MAX_LONG_PATH)
-	size := uint32(len(buf))
-	if err := windows.QueryFullProcessImageName(handle, 0, &buf[0], &size); err != nil {
-		return ""
-	}
-	return filepath.Base(windows.UTF16ToString(buf[:size]))
-}
-
-// O PID gravado no estado pode ter sido reciclado pelo Windows depois de um túnel que
-// morreu sem avisar. Só conta como túnel vivo se ainda for este mesmo programa.
-func helperAlive(pid int) bool {
-	if !processAlive(pid) {
-		return false
-	}
-	exe, err := os.Executable()
-	return err == nil && strings.EqualFold(processImageBase(pid), filepath.Base(exe))
-}
-
-func terminateProcess(pid int) error {
-	handle, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, uint32(pid))
-	if err != nil {
-		return err
-	}
-	defer windows.CloseHandle(handle)
-	return windows.TerminateProcess(handle, 1)
-}
-
-// Lista de processos pela API, e não pelo tasklist: o túnel pergunta isso a cada poucos
-// segundos durante horas, e abrir um processo novo toda vez seria desperdício.
-func processRunning(name string) bool {
-	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
-	if err != nil {
-		return false
-	}
-	defer windows.CloseHandle(snapshot)
-
-	var entry windows.ProcessEntry32
-	entry.Size = uint32(unsafe.Sizeof(entry))
-	for err = windows.Process32First(snapshot, &entry); err == nil; err = windows.Process32Next(snapshot, &entry) {
-		if strings.EqualFold(windows.UTF16ToString(entry.ExeFile[:]), name) {
-			return true
-		}
-	}
-	return false
-}
-
-// Sobe o processo do túnel com elevação. Quem já é administrador não precisa do UAC, mas
-// continua precisando de um processo separado, que sobrevive à janela do launcher fechar.
-func startTunnelHelper(args []string) (int, error) {
-	exe, err := os.Executable()
+// runElevated roda o executável com administrador, sem janela, e espera ele terminar. É o
+// único momento em que o Windows pergunta: na instalação, na atualização e na remoção.
+func runElevated(exe string, args []string) (uint32, error) {
+	process, err := shellRunas(exe, args)
 	if err != nil {
 		return 0, err
 	}
+	defer windows.CloseHandle(process)
 
-	if isElevated() {
-		cmd := exec.Command(exe, args...)
-		cmd.Dir = filepath.Dir(exe)
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			HideWindow:    true,
-			CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
-		}
-		if err := cmd.Start(); err != nil {
-			return 0, err
-		}
-		pid := cmd.Process.Pid
-		return pid, cmd.Process.Release()
+	if _, err := windows.WaitForSingleObject(process, windows.INFINITE); err != nil {
+		return 0, err
 	}
+	var code uint32
+	if err := windows.GetExitCodeProcess(process, &code); err != nil {
+		return 0, err
+	}
+	return code, nil
+}
 
+// startElevated não espera: a remoção precisa que a janela feche para apagar o executável.
+func startElevated(exe string, args []string) error {
+	process, err := shellRunas(exe, args)
+	if err != nil {
+		return err
+	}
+	return windows.CloseHandle(process)
+}
+
+func shellRunas(exe string, args []string) (windows.Handle, error) {
 	quoted := make([]string, len(args))
 	for i, arg := range args {
 		quoted[i] = windows.EscapeArg(arg)
@@ -175,31 +109,72 @@ func startTunnelHelper(args []string) (int, error) {
 		return 0, callErr
 	}
 	if info.hProcess == 0 {
-		return 0, errors.New("o Windows nao devolveu o processo do tunel")
+		return 0, errors.New("o Windows não devolveu o processo elevado")
 	}
-	defer windows.CloseHandle(info.hProcess)
-
-	pid, err := windows.GetProcessId(info.hProcess)
-	if err != nil {
-		return 0, err
-	}
-	return int(pid), nil
+	return info.hProcess, nil
 }
 
-// Um launcher rodando como administrador abriria o Discord como administrador também. O
-// Explorer abre como o usuário da sessão, que é como o Discord deve rodar.
-func launchUnelevated(binary string) error {
-	explorer := filepath.Join(os.Getenv("WINDIR"), "explorer.exe")
-	return exec.Command(explorer, binary).Start()
+func currentUserSID() string {
+	user, err := windows.GetCurrentProcessToken().GetTokenUser()
+	if err != nil {
+		return ""
+	}
+	return user.User.Sid.String()
 }
 
-func openBrowser(url string) error {
-	verb, _ := windows.UTF16PtrFromString("open")
-	target, err := windows.UTF16PtrFromString(url)
+func eachProcess(visit func(entry *windows.ProcessEntry32) bool) {
+	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
 	if err != nil {
-		return err
+		return
 	}
-	return windows.ShellExecute(0, verb, target, nil, nil, windows.SW_SHOWNORMAL)
+	defer windows.CloseHandle(snapshot)
+
+	var entry windows.ProcessEntry32
+	entry.Size = uint32(unsafe.Sizeof(entry))
+	for err = windows.Process32First(snapshot, &entry); err == nil; err = windows.Process32Next(snapshot, &entry) {
+		if !visit(&entry) {
+			return
+		}
+	}
+}
+
+// Lista de processos pela API, e não pelo tasklist: chamado de um programa com janela, cada
+// tasklist abriria um console piscando na tela.
+func processRunning(name string) bool {
+	found := false
+	eachProcess(func(entry *windows.ProcessEntry32) bool {
+		if strings.EqualFold(windows.UTF16ToString(entry.ExeFile[:]), name) {
+			found = true
+			return false
+		}
+		return true
+	})
+	return found
+}
+
+// Todos os processos do Discord têm o mesmo nome, da janela aos auxiliares, então fechar
+// pelo nome derruba a árvore inteira, como o taskkill /T fazia.
+func terminateAll(name string) error {
+	var pids []uint32
+	eachProcess(func(entry *windows.ProcessEntry32) bool {
+		if strings.EqualFold(windows.UTF16ToString(entry.ExeFile[:]), name) {
+			pids = append(pids, entry.ProcessID)
+		}
+		return true
+	})
+
+	var firstErr error
+	for _, pid := range pids {
+		handle, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, pid)
+		if err == nil {
+			err = windows.TerminateProcess(handle, 1)
+			windows.CloseHandle(handle)
+		}
+		if err != nil && firstErr == nil && !errors.Is(err, windows.ERROR_INVALID_PARAMETER) {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 // A pasta Downloads pode ter sido movida para outro disco, então o caminho vem do próprio

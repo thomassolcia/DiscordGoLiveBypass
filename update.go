@@ -17,33 +17,21 @@ const (
 	releasesAPI   = "https://api.github.com/repos/thomassolcia/DiscordGoLiveBypass/releases/latest"
 	releasesPage  = "https://github.com/thomassolcia/DiscordGoLiveBypass/releases/latest"
 	updateTimeout = 4 * time.Second
-	updateGrace   = time.Second
 	maxUpdateBody = 64 * 1024
 )
 
-// A consulta sai numa goroutine no comeco da execucao e o resultado e lido no fim, quando
-// ja terminou faz tempo. Ninguem espera por ela para abrir o Discord.
-func CheckUpdate(enabled bool) <-chan string {
-	newer := make(chan string, 1)
-
+// NewerRelease devolve a tag da ultima release quando ela e mais nova que esta. Build "dev"
+// nunca e comparado: um binario local contra a ultima release so daria alarme falso.
+func NewerRelease() string {
 	current := parseVersion(version)
-	if !enabled || current == nil {
-		close(newer)
-		return newer
+	if current == nil {
+		return ""
 	}
-
-	go func() {
-		defer close(newer)
-
-		tag, ok := latestRelease()
-		if !ok {
-			return
-		}
-		if newerThan(parseVersion(tag), current) {
-			newer <- tag
-		}
-	}()
-	return newer
+	tag, ok := latestRelease()
+	if !ok || !newerThan(parseVersion(tag), current) {
+		return ""
+	}
+	return tag
 }
 
 // Falha em silencio de proposito: sem rede, com a API fora do ar ou no limite de requisicoes,
@@ -90,17 +78,4 @@ func parseVersion(raw string) []int {
 		parts = append(parts, number)
 	}
 	return parts
-}
-
-func announceUpdate(ui *UI, newer <-chan string) {
-	select {
-	case tag, ok := <-newer:
-		if !ok || tag == "" {
-			return
-		}
-		ui.Warn("tem uma versao mais nova: %s, esta rodando a %s", tag, version)
-		ui.Detail("%s", releasesPage)
-	case <-time.After(updateGrace):
-		// Consulta lenta demais. Avisar depois que a janela fechou nao serve para nada.
-	}
 }
