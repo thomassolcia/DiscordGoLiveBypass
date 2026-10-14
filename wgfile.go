@@ -102,36 +102,6 @@ func findConfCandidates(dirs []string) []confCandidate {
 	return found
 }
 
-// A cópia fica na pasta do usuário para as próximas aberturas não dependerem do arquivo
-// continuar nos Downloads. Ela carrega a chave privada, então só o dono lê.
-func storeConf(src string) (string, error) {
-	dest, err := storedConfPath()
-	if err != nil {
-		return "", err
-	}
-	if same, _ := sameFile(src, dest); same {
-		return dest, nil
-	}
-
-	raw, err := os.ReadFile(src)
-	if err != nil {
-		return "", err
-	}
-	if err := os.MkdirAll(filepath.Dir(dest), 0o700); err != nil {
-		return "", err
-	}
-
-	tmp := dest + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o600); err != nil {
-		return "", err
-	}
-	if err := os.Rename(tmp, dest); err != nil {
-		os.Remove(tmp)
-		return "", err
-	}
-	return dest, nil
-}
-
 func sameFile(a, b string) (bool, error) {
 	ia, err := os.Stat(a)
 	if err != nil {

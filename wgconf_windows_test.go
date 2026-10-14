@@ -52,7 +52,7 @@ func TestValidateConfRecusa(t *testing.T) {
 		// Chave com um caractere a menos: o parser oficial repete o valor recusado no erro.
 		"chave truncada": {
 			strings.Replace(sampleConf, "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=", "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBw=", 1),
-			"nao e uma configuracao WireGuard valida",
+			"não é uma configuração WireGuard válida",
 		},
 		"preshared truncada": {
 			strings.Replace(sampleConf, "[Peer]\n", "[Peer]\nPresharedKey = BwcHBwcHBwcHBwcHBwcHBwcHBwc=\n", 1),

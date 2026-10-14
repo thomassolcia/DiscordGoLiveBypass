@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -148,28 +147,23 @@ func complete(dir string) bool {
 
 // O Discord é instância única: subir um segundo processo só acorda a janela do primeiro, e as
 // conexões que ele já tinha aberto continuam pela rota de antes do túnel.
-func IsRunning(channel Channel) (bool, error) {
-	if runtime.GOOS != "windows" {
-		return false, fmt.Errorf("checagem de processo so implementada no Windows")
-	}
-
-	out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq "+channel.Binary, "/NH", "/FO", "CSV").Output()
-	if err != nil {
-		return false, err
-	}
-	return strings.Contains(strings.ToLower(string(out)), strings.ToLower(channel.Binary)), nil
+func IsRunning(channel Channel) bool {
+	return processRunning(channel.Binary)
 }
 
 func Terminate(channel Channel) error {
-	if runtime.GOOS != "windows" {
-		return fmt.Errorf("encerrar processo so implementado no Windows")
-	}
+	return terminateAll(channel.Binary)
+}
 
-	out, err := exec.Command("taskkill", "/IM", channel.Binary, "/F", "/T").CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("taskkill falhou: %v: %s", err, strings.TrimSpace(string(out)))
+// RunningChannels diz quais Discords estão abertos agora, na ordem de channelOrder.
+func RunningChannels() []Channel {
+	var open []Channel
+	for _, key := range channelOrder {
+		if IsRunning(channels[key]) {
+			open = append(open, channels[key])
+		}
 	}
-	return nil
+	return open
 }
 
 func Launch(binary string, args []string) (int, error) {

@@ -69,33 +69,3 @@ func TestFindConfCandidates(t *testing.T) {
 		t.Errorf("ordem = %s, %s; queria o mais recente primeiro", found[0].Path, found[1].Path)
 	}
 }
-
-func TestStoreConf(t *testing.T) {
-	cache := t.TempDir()
-	t.Setenv("LocalAppData", cache)
-	t.Setenv("XDG_CACHE_HOME", cache)
-	t.Setenv("HOME", cache)
-
-	src := filepath.Join(t.TempDir(), "wg-US-FREE-1.conf")
-	if err := os.WriteFile(src, []byte(sampleConf), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	stored, err := storeConf(src)
-	if err != nil {
-		t.Fatalf("storeConf: %v", err)
-	}
-	raw, err := os.ReadFile(stored)
-	if err != nil || string(raw) != sampleConf {
-		t.Fatalf("copia guardada = %q, %v", raw, err)
-	}
-
-	// Guardar a própria cópia de novo não pode apagar nem truncar o arquivo.
-	again, err := storeConf(stored)
-	if err != nil || again != stored {
-		t.Fatalf("storeConf(copia) = %s, %v", again, err)
-	}
-	if raw, _ := os.ReadFile(stored); string(raw) != sampleConf {
-		t.Errorf("a copia mudou depois de guardar ela mesma: %q", raw)
-	}
-}

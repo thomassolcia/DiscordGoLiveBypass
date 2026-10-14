@@ -116,3 +116,28 @@ func CheckExit(timeout time.Duration) (exitInfo, error) {
 	}
 	return exitInfo{IP: "nao informado", Country: country, Latency: time.Since(started)}, nil
 }
+
+// O código ISO sozinho não diz nada para quem só quer saber se saiu do Brasil.
+var countryNames = map[string]string{
+	"AR": "Argentina", "AT": "Áustria", "AU": "Austrália", "BE": "Bélgica",
+	"BG": "Bulgária", "BR": "Brasil", "CA": "Canadá", "CH": "Suíça",
+	"CL": "Chile", "CO": "Colômbia", "CZ": "Tchéquia", "DE": "Alemanha",
+	"DK": "Dinamarca", "EE": "Estônia", "ES": "Espanha", "FI": "Finlândia",
+	"FR": "França", "GB": "Reino Unido", "GR": "Grécia", "HK": "Hong Kong",
+	"HU": "Hungria", "IE": "Irlanda", "IL": "Israel", "IN": "Índia",
+	"IS": "Islândia", "IT": "Itália", "JP": "Japão", "KR": "Coreia do Sul",
+	"LT": "Lituânia", "LU": "Luxemburgo", "LV": "Letônia", "MD": "Moldávia",
+	"MX": "México", "MY": "Malásia", "NL": "Países Baixos", "NO": "Noruega",
+	"NZ": "Nova Zelândia", "PE": "Peru", "PL": "Polônia", "PT": "Portugal",
+	"PY": "Paraguai", "RO": "Romênia", "RS": "Sérvia", "SE": "Suécia",
+	"SG": "Singapura", "SK": "Eslováquia", "TR": "Turquia", "TW": "Taiwan",
+	"UA": "Ucrânia", "US": "Estados Unidos", "UY": "Uruguai", "ZA": "África do Sul",
+}
+
+func CountryLabel(code string) string {
+	code = strings.ToUpper(code)
+	if name, ok := countryNames[code]; ok {
+		return fmt.Sprintf("%s (%s)", name, code)
+	}
+	return code
+}
