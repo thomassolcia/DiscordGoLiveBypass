@@ -11,3 +11,9 @@ desktop.ini
 
 # Recurso de versao gerado pelo go-winres na hora do build.
 *.syso
+
+# Driver do WireGuard baixado pelo Compilar.ps1. Vem com hash conferido a cada build,
+# entao nao precisa nem deve ser versionado.
+.deps/
+winres/wireguard.dll
+LICENCA-WireGuardNT.txt

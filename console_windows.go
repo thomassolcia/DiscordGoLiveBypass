@@ -9,11 +9,21 @@ import (
 )
 
 var (
-	kernel32               = syscall.NewLazyDLL("kernel32.dll")
-	procGetConsoleMode     = kernel32.NewProc("GetConsoleMode")
-	procSetConsoleMode     = kernel32.NewProc("SetConsoleMode")
-	procSetConsoleOutputCP = kernel32.NewProc("SetConsoleOutputCP")
+	kernel32                  = syscall.NewLazyDLL("kernel32.dll")
+	procGetConsoleMode        = kernel32.NewProc("GetConsoleMode")
+	procSetConsoleMode        = kernel32.NewProc("SetConsoleMode")
+	procSetConsoleOutputCP    = kernel32.NewProc("SetConsoleOutputCP")
+	procGetConsoleProcessList = kernel32.NewProc("GetConsoleProcessList")
 )
+
+// Aberto com dois cliques, o programa e o unico processo no console, e o Windows fecha a
+// janela no instante em que ele termina. Chamado de um terminal ou do .bat, ha outro
+// processo no mesmo console, e quem decide quando fechar e ele.
+func ownsConsole() bool {
+	pids := make([]uint32, 4)
+	count, _, _ := procGetConsoleProcessList.Call(uintptr(unsafe.Pointer(&pids[0])), uintptr(len(pids)))
+	return count == 1
+}
 
 const (
 	enableVirtualTerminal = 0x0004

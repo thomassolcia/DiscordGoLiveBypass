@@ -2,7 +2,7 @@
 
 # DiscordGoLiveBypass
 
-**Abre o Discord por um IP fora do Brasil, devolvendo o Go Live, a câmera e a transmissão de tela.**
+**Abre o Discord com só ele passando por uma VPN fora do Brasil, devolvendo o Go Live, a câmera e a transmissão de tela.**
 
 [![Versão](https://img.shields.io/github/v/release/thomassolcia/DiscordGoLiveBypass?style=flat-square&label=vers%C3%A3o&color=5865F2)](../../releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/thomassolcia/DiscordGoLiveBypass/total?style=flat-square&label=downloads&color=5865F2)](../../releases)
@@ -14,9 +14,9 @@
 
 </div>
 
-É um programa só, sem instalação, sem plugin e sem tocar nos arquivos do Discord. Você clica, ele procura um servidor no exterior, confere se funciona e abre o Discord já conectado por ele.
+É um programa só, sem instalação, sem plugin e sem tocar nos arquivos do Discord. Você clica, ele liga um túnel WireGuard que leva apenas o tráfego do Discord para fora do Brasil, confere com o próprio Discord que a saída mudou e abre o app.
 
-> **Windows apenas.** Não é VPN: só o Discord muda de rota, o resto do computador continua igual. Também não é ferramenta de privacidade: o tráfego passa por um servidor público de terceiros.
+> **Windows apenas.** Só o Discord muda de rota: o jogo que você está transmitindo, o navegador e o resto do computador continuam na sua conexão normal. O servidor de saída é o da sua VPN, então a confiança que vale é a que você tem nela.
 
 ## Por que o Go Live parou de funcionar
 
@@ -30,44 +30,74 @@ Na prática, para quem está no Brasil:
 
 O bloqueio é aplicado por região, e é por isso que sair por um IP de fora o desfaz. Este projeto não opina sobre a decisão da ANPD nem sobre o caso que a motivou: ele muda a rota da sua conexão, como uma VPN faria.
 
+## Por que a 2.0 trocou o proxy por um túnel
+
+Até a 1.0.4 o programa abria o Discord com `--proxy-server`, apontando para um proxy SOCKS5 gratuito. Isso liberava os botões, mas desviava só o que o Chromium do Discord faz: o gateway, a API e o resto do HTTP. Voz e vídeo saem por outro caminho, o motor de mídia nativo, em UDP, que ignora esse parâmetro, e por isso continuavam saindo do IP brasileiro.
+
+No começo de setembro o Discord passou a recusar essa combinação. A transmissão liberava, mas quem tentava assistir ficava no carregamento e caía em "Stream failed to start", **Erro 2012**, que é o tempo limite de 20 segundos esperando o primeiro quadro de vídeo. O áudio da live às vezes chegava, a imagem nunca. Proxy gratuito e Tor não carregam UDP, então nenhum ajuste no modelo antigo resolvia.
+
+A 2.0 liga um túnel WireGuard e põe nele as faixas de IP do Discord: gateway, API, CDN e os servidores de voz e vídeo. Tudo o que o Discord faz sai pelo mesmo IP de fora, UDP incluso. O resto do computador não entra no túnel.
+
 ## Como usar
+
+### Da primeira vez
+
+O túnel precisa de um servidor WireGuard. O jeito gratuito é uma conta no Proton VPN:
+
+1. Crie uma conta gratuita em [protonvpn.com](https://protonvpn.com).
+2. Entre em [account.protonvpn.com](https://account.protonvpn.com/downloads), abra **Downloads** e vá até **WireGuard configuration**.
+3. Escolha a plataforma **Windows**, um servidor gratuito e clique em **Create**.
+4. Baixe o arquivo `.conf`.
+
+Não precisa instalar o aplicativo do Proton: o arquivo basta. Qualquer outra VPN que entregue um arquivo WireGuard serve do mesmo jeito, e quem já paga uma usa o arquivo dela.
+
+Você também pode pular esses passos e ir direto para os de baixo: sem arquivo, o programa mostra este mesmo passo a passo, abre a página do Proton se você quiser e espera o arquivo chegar na pasta Downloads.
+
+### Toda vez
 
 1. Baixe o `.zip` na aba [Releases](../../releases) e extraia para uma pasta sua.
 2. Feche o Discord por inteiro. Não basta fechar a janela: clique com o botão direito no ícone dele perto do relógio e escolha **Quit Discord**.
-3. Clique duas vezes em `Abrir-Discord.bat`.
+3. Clique duas vezes em `Abrir-Discord.bat`. Dois cliques direto no `DiscordGoLiveBypass.exe` também funcionam; o `.bat` só acrescenta a pergunta de qual Discord abrir quando há mais de um instalado.
+4. O Windows pede permissão de administrador. Responda **Sim**: é ela que deixa criar o adaptador de rede do túnel.
+
+Na primeira vez, o programa acha o `.conf` na pasta Downloads, pergunta se pode usar e guarda uma cópia. Das próximas vezes ele usa a cópia e não pergunta mais nada.
 
 Se houver mais de um Discord na máquina, o normal e o PTB, ou o Canary junto, o `.bat` pergunta qual deles abrir antes de começar. Com um só instalado ele não pergunta nada e vai direto.
 
-Uma janela preta mostra o progresso e fecha sozinha quando termina:
+Uma janela preta mostra as etapas e fecha sozinha quando o Discord abre. Esta é uma abertura de verdade, com o servidor gratuito dos Estados Unidos e o arquivo já guardado:
 
 ```
- ╭────────────────────────────────────────────────────────╮
- │  DiscordGoLiveBypass                                   │
- │  abre o Discord por um IP de fora, sem VPN no sistema  │
- ╰────────────────────────────────────────────────────────╯
+ > 1/4  Procurando a instalacao do Discord
+   +  Discord Canary encontrado
+      C:\Users\voce\AppData\Local\DiscordCanary\app-1.0.1227\DiscordCanary.exe
+   !  o Discord Canary ja esta aberto, sera reiniciado no fim
 
- ▸ 1/3  Procurando a instalacao do Discord
-   ✔  Discord encontrado
-      C:\Users\voce\AppData\Local\Discord\app-1.0.9253\Discord.exe
+ > 2/4  Procurando o seu arquivo de VPN
+   +  usando o arquivo guardado da primeira vez
+      C:\Users\voce\AppData\Local\DiscordGoLiveBypass\wireguard.conf
+   +  configuracao WireGuard valida, servidor 146.70.202.34:51820
 
- ▸ 2/3  Procurando uma saida fora de Brasil (BR)
-   ⠹  ██████████░░░░░░░░░░░░░░  18/40  3 responderam ate agora
-   ✔  socks5://213.136.92.91:1080 serve, 1542 ms, saida em Alemanha (DE)
-      guardada para acelerar a proxima execucao
+ > 3/4  Ligando o tunel so para o Discord
+   -  o Windows vai pedir permissao de administrador, e ela que deixa criar o adaptador de rede do tunel
+   +  tunel ligado, 5 faixas de IP do Discord passam por ele
+   +  o Discord ve a saida em Estados Unidos (US), 768 ms
 
- ▸ 3/3  Abrindo o Discord
-   ✔  Discord aberto, pid 14240
+ > 4/4  Abrindo o Discord Canary
+   +  instancia antiga encerrada
+   +  Discord Canary, pid 10768 aberto
 
- ╭─ tudo pronto ──────────────────────────────────╮
- │  saida     Alemanha (DE)                       │
- │  servidor  socks5://213.136.92.91:1080         │
- │  resposta  1542 ms                             │
- │  discord   Discord, pid 14240                  │
- │  tempo     14s                                 │
- ╰────────────────────────────────────────────────╯
+ +- tudo pronto ---------------------------------------------+
+ |  saida     Estados Unidos (US)                            |
+ |  ip visto  146.70.202.37                                  |
+ |  servidor  146.70.202.34:51820                            |
+ |  resposta  768 ms                                         |
+ |  discord   Discord Canary, pid 10768                      |
+ |  tunel     fica ligado enquanto o Discord estiver aberto  |
+ |  tempo     7s                                             |
+ +-----------------------------------------------------------+
 ```
 
-A barra da etapa 2 é a parte demorada: cada quadradinho é um servidor sendo testado contra o Discord de verdade. Serve qualquer país que não seja o Brasil. **A primeira tela demora mais que o normal**, às vezes meio minuto, porque tudo está dando a volta pelo exterior. Depois que carrega, o uso é igual ao de sempre.
+O túnel fica ligado em segundo plano enquanto o Discord estiver aberto e se desliga sozinho meio minuto depois que você fecha o Discord.
 
 Se a janela ficar aberta com uma mensagem, algo falhou: procure a mensagem no [FAQ](#faq).
 
@@ -83,7 +113,9 @@ O binário não é montado na máquina de ninguém: o GitHub Actions compila a p
 Get-FileHash DiscordGoLiveBypass.exe -Algorithm SHA256
 ```
 
-Se não bater com a linha correspondente do `SHA256SUMS.txt`, apague o arquivo. E quem preferir não confiar em binário nenhum pode [compilar](#compilar-do-código-fonte), que são dois comandos.
+Se não bater com a linha correspondente do `SHA256SUMS.txt`, apague o arquivo. E quem preferir não confiar em binário nenhum pode [compilar](#compilar-do-código-fonte), com um comando só.
+
+Dentro do executável vai o driver WireGuardNT, o mesmo que o cliente oficial do WireGuard para Windows usa, sem nenhuma modificação. Ele é baixado no build do site oficial e só entra se o hash bater com o que o próprio cliente oficial fixa, e vem assinado pela WireGuard LLC.
 
 Ao abrir, o programa faz uma consulta à API pública do GitHub só para saber se existe uma versão mais nova, e avisa na última linha quando existe. Ele nunca baixa nem troca nada sozinho: a atualização continua sendo você quem faz, baixando o `.zip` novo. Nada é enviado nessa consulta, nem identificador nem informação da máquina, e `-no-update` desliga.
 
@@ -92,24 +124,45 @@ Ao abrir, o programa faz uma consulta à API pública do GitHub só para saber s
 ### No dia a dia
 
 <details>
-<summary><strong>Preciso rodar toda vez que for usar o Discord?</strong></summary>
+<summary><strong>Preciso de conta numa VPN?</strong></summary>
 <br>
 
-Sim. A configuração vale só para aquela abertura. Se você abrir pelo atalho antigo, o Discord volta ao normal, sem bypass.
+Precisa de um servidor WireGuard, e a conta gratuita do Proton VPN é o jeito mais simples de ter um. A conta é sua e o arquivo também: o programa não traz chave embutida, porque uma chave dividida entre milhares de pessoas derruba a conexão de todas (o WireGuard trata cada chave como um aparelho só) e ainda poria o tráfego de todo mundo na conta de uma pessoa.
 </details>
 
 <details>
-<summary><strong>Preciso deixar a janela preta aberta?</strong></summary>
+<summary><strong>Por que não usar uma VPN comum direto?</strong></summary>
 <br>
 
-Não. Ela fecha sozinha assim que o Discord sobe.
+Dá, e funciona. A diferença é que a VPN comum leva o computador inteiro: o jogo que você está transmitindo ganha ping, e banco, streaming e downloads passam a sair pelo servidor dela. Aqui só o Discord vai pelo túnel. Se você não se importa de pôr tudo na VPN, ela resolve com o mesmo esforço.
+</details>
+
+<details>
+<summary><strong>Preciso rodar toda vez que for usar o Discord?</strong></summary>
+<br>
+
+Sim. O túnel vale enquanto aquele Discord estiver aberto. Se você abrir pelo atalho antigo, o Discord volta ao normal, sem bypass.
+</details>
+
+<details>
+<summary><strong>Por que pede administrador toda vez?</strong></summary>
+<br>
+
+Criar um adaptador de rede e mexer em rota é coisa que o Windows só deixa com administrador. O pedido é só para o processo do túnel: o Discord continua abrindo como o seu usuário. Se o túnel da última vez ainda estiver ligado, com o mesmo arquivo, o programa reaproveita e não pede de novo.
+</details>
+
+<details>
+<summary><strong>O que fica instalado no meu computador?</strong></summary>
+<br>
+
+Enquanto o túnel está ligado, um adaptador de rede chamado `DiscordGoLiveBypass` e o driver WireGuardNT. Quando o túnel desliga, os dois saem. Na pasta `%LOCALAPPDATA%\DiscordGoLiveBypass` ficam a cópia do seu `.conf`, o estado do túnel e o registro dele, `tunnel.log`, que não grava chave nenhuma.
 </details>
 
 <details>
 <summary><strong>Vai ficar lento?</strong></summary>
 <br>
 
-As mensagens e o carregamento inicial, um pouco. A transmissão em si não: vídeo, voz e imagens vão direto, sem desvio, justamente para não perder qualidade.
+O Discord passa a dar a volta pelo servidor da VPN, então o ping dele sobe um pouco, mais ou menos o quanto o servidor está longe. O resto do computador não muda. O plano gratuito do Proton tem velocidade média e servidores às vezes cheios; se a chamada engasgar, gere um arquivo com outro servidor.
 </details>
 
 <details>
@@ -120,13 +173,59 @@ Nos três, e ele detecta sozinho qual está instalado. Se você tem mais de um, 
 </details>
 
 <details>
-<summary><strong>Isso é uma VPN?</strong></summary>
+<summary><strong>Quero trocar de servidor ou de VPN</strong></summary>
 <br>
 
-Não. Só o Discord muda de rota. Navegador, jogos e downloads continuam saindo pela sua conexão normal.
+Baixe o arquivo novo e rode uma vez com `-conf` apontando para ele. A cópia guardada é substituída e as próximas aberturas usam o novo:
+
+```
+DiscordGoLiveBypass.exe -force -conf "C:\Users\voce\Downloads\outro-servidor.conf"
+```
 </details>
 
 ### Quando dá errado
+
+<details>
+<summary><strong>Apareceu "nao achei nenhum arquivo de VPN"</strong></summary>
+<br>
+
+O programa não tem um `.conf` guardado e não achou nenhum na pasta Downloads. Siga os passos de [Da primeira vez](#da-primeira-vez) e rode pelo `Abrir-Discord.bat`, que pergunta e espera o arquivo. Se ele estiver em outra pasta, aponte com `-conf`.
+</details>
+
+<details>
+<summary><strong>Apareceu "nao e uma configuracao WireGuard valida"</strong></summary>
+<br>
+
+O arquivo está incompleto ou não é de WireGuard. Arquivo de OpenVPN (`.ovpn`) não serve. Gere de novo no site da VPN, na opção de WireGuard, e rode com `-conf`.
+</details>
+
+<details>
+<summary><strong>Apareceu "a permissao de administrador foi negada"</strong></summary>
+<br>
+
+O aviso do Windows foi respondido com Não ou fechado. Rode de novo e responda Sim. Se a sua conta não for administradora, o Windows pede a senha de uma que seja.
+</details>
+
+<details>
+<summary><strong>Apareceu "o tunel subiu, mas o Discord nao respondeu por ele"</strong></summary>
+<br>
+
+O adaptador foi criado, mas o servidor da VPN não respondeu. Costuma ser servidor fora do ar ou arquivo antigo, cuja chave a VPN já revogou. Gere outro arquivo no site da VPN e rode com `-conf`. Se continuar, rode o `Validar-rota.ps1` e anexe o resultado numa issue.
+</details>
+
+<details>
+<summary><strong>Apareceu "o Discord ainda ve a saida em BR"</strong></summary>
+<br>
+
+O túnel subiu, mas o Discord continua enxergando o Brasil. Ou o servidor escolhido no arquivo fica num país recusado, e aí basta gerar outro com um servidor de fora, ou as rotas não pegaram. O `Validar-rota.ps1` mostra por qual interface cada destino do Discord está saindo.
+</details>
+
+<details>
+<summary><strong>Apareceu "nao consegui criar o adaptador de rede do tunel"</strong></summary>
+<br>
+
+O Windows recusou o driver ou o adaptador. Antivírus com proteção de rede costuma ser o motivo: adicione o `DiscordGoLiveBypass.exe` às exceções. Outro app de VPN ligado ao mesmo tempo também pode atrapalhar; desligue-o e tente de novo.
+</details>
 
 <details>
 <summary><strong>Apareceu "nao achei nenhum Discord instalado"</strong></summary>
@@ -143,39 +242,21 @@ DiscordGoLiveBypass.exe -force -exe "C:\caminho\completo\Discord.exe"
 <summary><strong>Apareceu "a conexao foi bloqueada pela sua propria maquina"</strong></summary>
 <br>
 
-O Windows recusou a conexão antes de ela sair para a internet, com o código `WSAEACCES` (na mensagem original: *an attempt was made to access a socket in a way forbidden by its access permissions*). Não é a lista de proxies fora do ar nem sua internet: é algo instalado aí barrando este programa, quase sempre um antivírus com proteção de rede (Avast, AVG, ESET, Kaspersky, McAfee) ou uma regra de saída do Firewall do Windows. O executável não tem assinatura digital, e programa sem assinatura é o alvo preferido dessas proteções.
+O Windows recusou a conexão antes de ela sair para a internet, com o código `WSAEACCES` (na mensagem original: *an attempt was made to access a socket in a way forbidden by its access permissions*). Não é a VPN nem sua internet: é algo instalado aí barrando este programa, quase sempre um antivírus com proteção de rede (Avast, AVG, ESET, Kaspersky, McAfee) ou uma regra de saída do Firewall do Windows. O executável não tem assinatura digital, e programa sem assinatura é o alvo preferido dessas proteções.
 
 O que tentar, nessa ordem:
 
 1. Abra seu antivírus, procure a lista de exceções e adicione o `DiscordGoLiveBypass.exe`.
-2. Se você usa VPN, feche-a e rode de novo: alguns clientes deixam um filtro de rede ativo mesmo desconectados.
+2. Se você usa outra VPN, feche-a e rode de novo: alguns clientes deixam um filtro de rede ativo mesmo desconectados.
 3. Se continuar, confira no Firewall do Windows (Segurança Avançada, Regras de Saída) se existe uma regra bloqueando o programa.
-4. Se preferir não mexer em exceção nenhuma, [compile do código-fonte](#compilar-do-código-fonte): o binário que sai do seu próprio `go build` costuma passar.
-</details>
-
-<details>
-<summary><strong>Apareceu "nenhuma proxy da lista passou nos testes"</strong></summary>
-<br>
-
-Todos os servidores testados estavam fora do ar ou lentos demais. É comum, eles são gratuitos e caem o tempo todo. Tente de novo, que na segunda ou terceira vez costuma funcionar. Se insistir em falhar, dê mais tempo de busca:
-
-```
-DiscordGoLiveBypass.exe -force -timeout 5m
-```
-</details>
-
-<details>
-<summary><strong>Apareceu "saida em BR, que esta na lista de recusados"</strong></summary>
-<br>
-
-O servidor respondeu bem, mas sai num país que você recusou, e usá-lo deixaria o Go Live bloqueado do mesmo jeito. Só aparece como erro quando o servidor foi escolhido por você com `-proxy`: trocá-lo por outro sem avisar seria pior que parar. Nos outros casos o programa apenas descarta e continua procurando, que é o que acontece quando o servidor guardado da última vez mudou de saída.
+4. Se preferir não mexer em exceção nenhuma, [compile do código-fonte](#compilar-do-código-fonte): o binário que sai do seu próprio build costuma passar.
 </details>
 
 <details>
 <summary><strong>Apareceu "o Discord ja esta aberto"</strong></summary>
 <br>
 
-Só acontece se você chamar o programa sem o `-force`. O `Abrir-Discord.bat` e o atalho da área de trabalho já usam, então feche o Discord ou use um dos dois.
+Só acontece quando o programa é chamado pelo terminal sem o `-force`. Dois cliques no `Abrir-Discord.bat`, no executável ou no atalho da área de trabalho já fecham o Discord aberto antes de abrir de novo.
 </details>
 
 <details>
@@ -188,26 +269,17 @@ O programa já evita essas pastas sozinho e usa a última versão que estiver co
 </details>
 
 <details>
-<summary><strong>O Discord abre mas fica travado em "Connecting"</strong></summary>
+<summary><strong>O Go Live continua bloqueado ou dá Erro 2012</strong></summary>
 <br>
 
-O servidor escolhido morreu entre o teste e a abertura, o que acontece com servidor gratuito. Feche o Discord e clique no atalho de novo: ele procura outro. O programa recusa de propósito cair para conexão direta, porque isso faria o bloqueio voltar sem avisar você.
+Confira três coisas. Plugin de bypass ativo no Vencord ou BetterDiscord mexe na conexão depois que o Discord abre e pode desfazer o túnel: desative e tente de novo. Quem assiste também precisa estar com o Go Live liberado, por este programa ou por uma VPN. E o `Validar-rota.ps1`, rodado com o Discord aberto, mostra se a voz e o vídeo estão mesmo saindo pelo adaptador `DiscordGoLiveBypass`.
 </details>
 
 <details>
-<summary><strong>O Go Live continua bloqueado</strong></summary>
+<summary><strong>Eu usava a 1.x, o que muda?</strong></summary>
 <br>
 
-Duas possibilidades. A primeira é você ter um plugin de bypass ativo no Vencord ou BetterDiscord: ele mexe na conexão depois que o Discord abre e desfaz o que este programa fez, então desative e tente de novo. A segunda é o servidor sorteado estar num país que também tem restrição, e aí vale recusar mais países com `-exclude BR,AR,CL`.
-</details>
-
-<details>
-<summary><strong>O Discord ficou lento, e mandar anexo demora</strong></summary>
-<br>
-
-Em parte é esperado: sua conexão passa a sair por um servidor público gratuito, que tem latência alta e banda de subida apertada. O programa escolhe o de menor resposta que encontra e avisa quando o melhor disponível ainda é ruim, mas ele não faz milagre com a lista do dia.
-
-O upload de anexo era um caso pior que o resto, e isso foi corrigido: ele sobe para um bucket do Google, que agora sai por fora do proxy como o resto da mídia. Se a lentidão geral incomodar, use um servidor melhor com `-proxy socks5://ip:porta` ou deixe um Tor local aberto, que o programa prefere sozinho.
+O programa não procura mais proxy gratuito nem Tor: agora ele precisa do arquivo da sua VPN, e pede administrador para ligar o túnel. As opções `-proxy`, `-bypass`, `-route`, `-timeout`, `-no-cache`, `-no-tor` e `-fallback` deixaram de existir. Um atalho antigo que use alguma delas continua funcionando, só aparece um aviso de que ela foi ignorada.
 </details>
 
 ### Segurança e risco
@@ -216,7 +288,7 @@ O upload de anexo era um caso pior que o resto, e isso foi corrigido: ele sobe p
 <summary><strong>É seguro?</strong></summary>
 <br>
 
-O tráfego de mensagens passa por um servidor público de terceiros, o que não é um risco diferente do de qualquer proxy gratuito, mas também não é zero. Se você tem o Tor instalado e aberto, o programa prefere ele automaticamente, e aí é bem mais confiável.
+O tráfego do Discord passa pelo servidor da VPN que você escolheu, criptografado pelo WireGuard até lá. A chave fica só no seu computador, na cópia guardada dentro da pasta do seu usuário, em `%LOCALAPPDATA%`. O programa nunca mostra nem registra a chave, nem em mensagem de erro.
 </details>
 
 <details>
@@ -230,7 +302,7 @@ O programa muda a rota da sua conexão, não modifica o Discord nem automatiza n
 <summary><strong>Meu antivírus reclamou</strong></summary>
 <br>
 
-Programa novo, sem assinatura digital, que abre conexões de rede e fecha outro programa: é o retrato do que antivírus desconfia. O código está todo aqui, o binário sai do GitHub Actions com log público e cada release traz as somas SHA256.
+Programa novo, sem assinatura digital, que cria adaptador de rede e fecha outro programa: é o retrato do que antivírus desconfia. O código está todo aqui, o binário sai do GitHub Actions com log público e cada release traz as somas SHA256.
 </details>
 
 ## Opções para quem quer ajustar
@@ -240,57 +312,64 @@ Abra o Prompt de Comando na pasta do programa e use:
 | opção | para que serve |
 | --- | --- |
 | `-force` | fecha um Discord já aberto antes de subir o novo |
-| `-check` | só testa e mostra o resultado, sem abrir o Discord |
+| `-conf "C:\...\arquivo.conf"` | usa este arquivo WireGuard e guarda para as próximas vezes |
+| `-check` | liga o túnel, mostra a saída que o Discord vê e desliga, sem abrir o Discord |
 | `-exclude BR,AR` | países recusados na saída (padrão: só `BR`) |
 | `-channel canary` | força um canal: `auto`, `stable`, `ptb` ou `canary` |
 | `-exe "C:\..."` | aponta o executável na mão |
-| `-proxy socks5://ip:porta` | usa um servidor específico e nenhum outro |
-| `-timeout 5m` | quanto tempo pode gastar procurando |
-| `-fallback` | deixa cair para conexão direta se o proxy falhar |
-| `-no-cache` / `-no-tor` | ignora o servidor guardado / não procura Tor local |
 | `-no-update` | não consulta o GitHub atrás de versão nova |
-
-> **Cuidado com o `-fallback`:** com ele, um servidor que morre no meio do uso vira conexão direta sem aviso, e o bloqueio volta em silêncio. Por isso não é o padrão.
 
 ## Como funciona por dentro
 
-O Discord é um app Electron, ou seja, um Chromium disfarçado, e o Chromium aceita um parâmetro de linha de comando dizendo por onde sair para a internet. O programa aproveita isso.
+O launcher roda como o seu usuário. Ele acha o `Discord.exe` da versão mais nova em `%LOCALAPPDATA%`, lê o arquivo WireGuard e sobe uma segunda cópia de si mesmo com administrador, sem janela, que é quem mantém o túnel. Os dois conversam por arquivos na pasta de dados.
 
-Ele acha o `Discord.exe` da versão mais nova em `%LOCALAPPDATA%`, procura um servidor de saída (o que você passou em `-proxy`, o que funcionou da última vez, um Tor local aberto ou a lista pública da proxyscrape, nessa ordem) e abre o app com `--proxy-server=socks5://ip:porta`.
+O processo do túnel cria um adaptador com o driver WireGuardNT e põe nele só as faixas do Discord, conferidas no registro do RIPE e no DNS: `66.22.192.0/18` e `195.62.89.0/24`, onde ficam os servidores de voz e vídeo, um bloco por região, e `162.159.128.0/20`, o trecho da Cloudflare com gateway, API e CDN, mais os equivalentes em IPv6. Na hora de abrir, ele ainda resolve os domínios do Discord e acrescenta qualquer endereço que tenha saído dessas faixas. Rota mais específica vence a rota padrão, então só esse tráfego entra no túnel, e o Windows escolhe isso sozinho para qualquer programa, inclusive o motor de mídia nativo do Discord.
 
-A validação de cada candidato vai até o fim: túnel SOCKS5, TLS e resposta `200` da API do Discord, e só então o país de saída, conferido em `ifconfig.co` por dentro do mesmo túnel. Servidor que apenas aceita a conexão passa em teste ingênuo e trava o app depois.
+O arquivo do Proton não traz endereço IPv6. As rotas IPv6 do Discord vão para o túnel mesmo assim: lá elas não têm saída, e a ideia é o Discord cair para o IPv4, que passa pelo túnel. Sem isso, numa rede com IPv6 parte do tráfego escaparia pelo IP brasileiro, que é exatamente a divergência que derrubou a 1.x.
 
-Entre os que passam, vence o de menor resposta, não o primeiro que respondeu. Achando um abaixo de 1200 ms o programa para ali mesmo; sem nenhum tão bom, ele testa a lista inteira e só então compara todos, porque parar cedo entregava um servidor de 2000 ms enquanto um de 300 ms esperava no lote seguinte. O guardado da última vez também perde a preferência quando está lento, mas continua de reserva caso a busca não ache nada melhor.
+Com o túnel de pé, o launcher pergunta ao gateway do Discord, em `gateway.discord.gg/cdn-cgi/trace`, com que IP e de que país você chega. É o IP do gateway que decide o que a conta pode fazer, e o pedido faz o mesmo caminho que o app vai fazer. O `location-metadata` do Discord, que responde a mesma pergunta, fica só de reserva: ele limita os pedidos por IP, e o servidor gratuito da VPN é dividido com muita gente. Se a resposta ainda for um país recusado, o túnel é desligado e a abertura para ali, em vez de entregar um Discord que parece liberado e não está. Só então o Discord abre, sem nenhum parâmetro especial.
 
-Mídia pesada sai por fora do proxy de propósito: mandá-la por um servidor gratuito destruiria a qualidade da transmissão sem ganho nenhum, já que quem determina a região é a API. São `cdn.discordapp.com`, `*.discordapp.net` e `*.discord.media` no que você recebe, e `*.storage.googleapis.com` no que você envia, porque o anexo não sobe para o Discord: sobe para uma URL assinada que a API devolve, num bucket do Google. Isso entra por curinga e não por nome, já que o nome do bucket muda de versão.
-
-Que o mecanismo funciona dá para verificar: subindo o Discord com um servidor propositalmente morto, o carregamento inteiro morre junto, com `ERR_PROXY_CONNECTION_FAILED`, e o app não passa da tela inicial.
+O processo do túnel acompanha o `Discord.exe`. Quando o Discord fica fechado por mais de 30 segundos, prazo que cobre o reinício do próprio atualizador, ele desliga o adaptador, remove o driver se nenhum outro programa o estiver usando e sai.
 
 ## Compilar do código-fonte
 
-Precisa do [Go](https://go.dev/dl/). Nenhuma outra dependência, só a biblioteca padrão.
+Precisa do [Go](https://go.dev/dl/). No PowerShell, na pasta do projeto:
 
 ```
-go build -o DiscordGoLiveBypass.exe .
+.\Compilar.ps1
 ```
+
+É o mesmo script que a release usa: baixa o WireGuardNT do site oficial, confere o hash, embute o driver e a identificação no executável e compila. `go build` puro também compila, mas aí o executável procura o `wireguard.dll` na própria pasta.
 
 | arquivo | conteúdo |
 | --- | --- |
-| `main.go` | opções, ordem das fontes de servidor, orquestração |
-| `proxy.go` | túnel SOCKS5 e HTTP CONNECT, teste via TLS, país de saída |
-| `source.go` | lista pública, ranqueamento, testes em paralelo, Tor, cache |
+| `main.go` | opções, ordem das etapas, primeira abertura guiada, conferência da saída |
+| `tunnel.go` | estado compartilhado entre o launcher e o processo do túnel |
+| `tunnel_windows.go` | leitura do `.conf`, adaptador WireGuardNT, endereços, rotas e vigia do Discord |
+| `elevate_windows.go` | pedido de administrador, abertura sem elevação e lista de processos |
+| `routes.go` | faixas de IP do Discord e resolução dos domínios |
+| `trace.go` | país e IP que o Discord enxerga |
+| `wgfile.go` | busca do `.conf` nos Downloads e cópia guardada |
 | `discord.go` | detecção da instalação, instância única, abertura |
-| `ui.go` | etapas, spinner, barra de progresso, caixas de resumo e de erro |
+| `ui.go` | etapas, spinner, perguntas, caixas de resumo e de erro |
 | `update.go` | versão do build e consulta da última release no GitHub |
 | `console*.go` | liga ANSI e UTF-8 no console, e detecta quando cair para texto puro |
-| `*_test.go` | testes das partes que dão para checar sem rede nem Discord instalado |
+| `*_test.go` | testes das partes que dão para checar sem administrador nem Discord instalado |
 
-Os testes rodam sem rede e sem Discord na máquina, e cobrem a ordem das versões, os filtros da lista pública e a leitura das opções:
+Os testes rodam sem rede e sem administrador:
 
 ```
 go test ./...
 ```
 
+Para conferir de verdade o que o Discord enxerga, sem o túnel ligado, há um teste que consulta o Discord e só roda quando pedido:
+
+```
+$env:DGLB_REDE = '1'; go test -run AoVivo -v ./...
+```
+
 ## Créditos
 
-A lógica de busca, ranqueamento e validação de servidores é adaptada do **GoLiveBypass**, plugin Vencord que resolve o mesmo problema por dentro do Discord. Este projeto faz por fora, sem tocar na instalação. Por isso a licença aqui é a mesma dele, GPL-3.0.
+A ideia de passar o Discord inteiro por um túnel WireGuard, em vez de só o gateway por um proxy, veio do **[GoLiveBypass](https://github.com/bezumiya/GoLiveBypass)**, que resolve o mesmo problema com interface gráfica e plugin para Vencord. Este projeto faz por fora, sem tocar na instalação do Discord. Por isso a licença aqui é a mesma dele, GPL-3.0.
+
+O túnel usa o driver WireGuardNT e as bibliotecas `wireguard-windows`, da WireGuard LLC, cada um sob a sua licença. A do driver vai junto no `.zip`, em `LICENCA-WireGuardNT.txt`. WireGuard é marca registrada de Jason A. Donenfeld, e este projeto não tem relação com ele.

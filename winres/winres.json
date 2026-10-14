@@ -1,4 +1,9 @@
 {
+  "RT_RCDATA": {
+    "WIREGUARD.DLL": {
+      "0000": "wireguard.dll"
+    }
+  },
   "RT_MANIFEST": {
     "#1": {
       "0409": {
@@ -6,7 +11,7 @@
           "name": "DiscordGoLiveBypass",
           "version": "0.0.0.0"
         },
-        "description": "Abre o Discord por um proxy fora do Brasil",
+        "description": "Abre o Discord com so ele passando por uma VPN WireGuard",
         "minimum-os": "win7",
         "execution-level": "as invoker",
         "ui-access": false,
@@ -26,7 +31,7 @@
         "info": {
           "0409": {
             "ProductName": "DiscordGoLiveBypass",
-            "FileDescription": "Abre o Discord por um proxy fora do Brasil",
+            "FileDescription": "Abre o Discord com so ele passando por uma VPN WireGuard",
             "CompanyName": "Thomas Solcia",
             "LegalCopyright": "Licenca GPL-3.0, codigo em github.com/thomassolcia/DiscordGoLiveBypass",
             "OriginalFilename": "DiscordGoLiveBypass.exe",
