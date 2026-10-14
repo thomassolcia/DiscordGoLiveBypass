@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="fundo" x1="0" y1="0" x2="0" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#27292F"/>
+      <stop offset="1" stop-color="#131417"/>
+    </linearGradient>
+    <linearGradient id="balao" x1="40" y1="40" x2="216" y2="216" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8089FF"/>
+      <stop offset="1" stop-color="#4C58E8"/>
+    </linearGradient>
+  </defs>
+  <path d="M68 20h120a56 56 0 0 1 56 56v62a56 56 0 0 1-56 56h-60l-56 44c-9 7-21-1-18-12l8-34A56 56 0 0 1 12 138V76a56 56 0 0 1 56-56z" fill="url(#balao)"/>
+  <circle cx="128" cy="107" r="22" fill="#FFFFFF"/>
+  <path d="M90 69a54 54 0 0 0 0 76M166 69a54 54 0 0 1 0 76" fill="none" stroke="#FFFFFF" stroke-width="23" stroke-linecap="round"/>
+</svg>

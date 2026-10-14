@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="fundo" x1="0" y1="0" x2="0" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#27292F"/>
+      <stop offset="1" stop-color="#131417"/>
+    </linearGradient>
+    <linearGradient id="balao" x1="40" y1="40" x2="216" y2="216" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8089FF"/>
+      <stop offset="1" stop-color="#4C58E8"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#fundo)"/>
+  <rect x="9" y="9" width="238" height="238" rx="55" fill="none" stroke="#FFFFFF" stroke-opacity="0.08" stroke-width="2"/>
+  <path d="M86 56h84a42 42 0 0 1 42 42v44a42 42 0 0 1-42 42h-50l-30 22.5c-6.6 5-15.2-.6-13.2-8.6l3.4-14.6A42 42 0 0 1 44 142V98a42 42 0 0 1 42-42z" fill="url(#balao)"/>
+  <circle cx="128" cy="120" r="10.5" fill="#FFFFFF"/>
+  <path d="M110.3 102.3a25 25 0 0 0 0 35.4M145.7 102.3a25 25 0 0 1 0 35.4" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round"/>
+  <path d="M97.2 89.2a43.5 43.5 0 0 0 0 61.6M158.8 89.2a43.5 43.5 0 0 1 0 61.6" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="9" stroke-linecap="round"/>
+</svg>
