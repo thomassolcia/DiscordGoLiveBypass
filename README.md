@@ -57,7 +57,7 @@ Você também pode pular esses passos e ir direto para os de baixo: sem arquivo,
 
 1. Baixe o `.zip` na aba [Releases](../../releases) e extraia para uma pasta sua.
 2. Feche o Discord por inteiro. Não basta fechar a janela: clique com o botão direito no ícone dele perto do relógio e escolha **Quit Discord**.
-3. Clique duas vezes em `Abrir-Discord.bat`.
+3. Clique duas vezes em `Abrir-Discord.bat`. Dois cliques direto no `DiscordGoLiveBypass.exe` também funcionam; o `.bat` só acrescenta a pergunta de qual Discord abrir quando há mais de um instalado.
 4. O Windows pede permissão de administrador. Responda **Sim**: é ela que deixa criar o adaptador de rede do túnel.
 
 Na primeira vez, o programa acha o `.conf` na pasta Downloads, pergunta se pode usar e guarda uma cópia. Das próximas vezes ele usa a cópia e não pergunta mais nada.
@@ -256,7 +256,7 @@ O que tentar, nessa ordem:
 <summary><strong>Apareceu "o Discord ja esta aberto"</strong></summary>
 <br>
 
-Só acontece se você chamar o programa sem o `-force`. O `Abrir-Discord.bat` e o atalho da área de trabalho já usam, então feche o Discord ou use um dos dois.
+Só acontece quando o programa é chamado pelo terminal sem o `-force`. Dois cliques no `Abrir-Discord.bat`, no executável ou no atalho da área de trabalho já fecham o Discord aberto antes de abrir de novo.
 </details>
 
 <details>
