@@ -504,26 +504,86 @@ function modalFechar() {
     </div>`;
 }
 
-// A tela é redesenhada a cada consulta ao serviço. Quem está digitando não pode perder o
-// foco nem o cursor no meio disso: os valores já ficam guardados em s.proton a cada tecla,
-// e o campo ativo é devolvido depois de desenhar.
+// A tela é montada de novo a cada consulta ao serviço, de 3 em 3 segundos, mas só o que
+// mudou de fato vai para a página. Trocar tudo de uma vez recriava o campo em que a pessoa
+// estava digitando, e o cursor voltava para o começo; também fechava listas abertas e
+// piscava o botão sob o mouse.
 function desenhar() {
   if (!s.app) return;
-  const ativo = document.activeElement?.dataset?.campo;
-  const cursor = ativo ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
-
   document.getElementById('versao').textContent = s.app.version;
-  tela.innerHTML = configurado() ? painel() : telaInicial();
-  rodape.innerHTML = desenharRodape();
-  sobreposicao.innerHTML = modalFechar();
+  aplicar(tela, configurado() ? painel() : telaInicial());
+  aplicar(rodape, desenharRodape());
+  aplicar(sobreposicao, modalFechar());
+}
 
-  if (ativo) {
-    const campo = tela.querySelector(`[data-campo="${ativo}"]`);
-    if (campo) {
-      campo.focus();
-      if (cursor && cursor[0] !== null && campo.setSelectionRange) campo.setSelectionRange(cursor[0], cursor[1]);
+function aplicar(alvo, html) {
+  const modelo = document.createElement('template');
+  modelo.innerHTML = html;
+  juntarFilhos(alvo, modelo.content);
+}
+
+// Dois elementos são o mesmo quando têm a mesma tag, a mesma chave e a mesma primeira
+// classe. A chave separa o que pode aparecer e sumir no meio da lista, como os avisos, e
+// também os campos: o e-mail nunca é reaproveitado como campo do código.
+function chave(no) {
+  if (no.nodeType !== Node.ELEMENT_NODE) return '';
+  const d = no.dataset || {};
+  return no.id || d.chave || d.campo || d.pref || d.arquivo || '';
+}
+
+function mesmo(a, b) {
+  if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) return false;
+  if (a.nodeType !== Node.ELEMENT_NODE) return true;
+  return chave(a) === chave(b) && (a.classList[0] || '') === (b.classList[0] || '')
+    && (a.nodeName !== 'INPUT' || a.type === b.type);
+}
+
+function juntarFilhos(atual, novo) {
+  let cursor = atual.firstChild;
+  for (const filho of [...novo.childNodes]) {
+    let par = cursor;
+    if (chave(filho)) {
+      while (par && !mesmo(par, filho)) par = par.nextSibling;
+    } else if (par && !mesmo(par, filho)) {
+      par = null;
     }
+    if (!par) {
+      atual.insertBefore(filho, cursor);
+      continue;
+    }
+    if (par !== cursor) atual.insertBefore(par, cursor);
+    juntar(par, filho);
+    cursor = par.nextSibling;
   }
+  while (cursor) {
+    const proximo = cursor.nextSibling;
+    cursor.remove();
+    cursor = proximo;
+  }
+}
+
+function juntar(atual, novo) {
+  if (atual.nodeType !== Node.ELEMENT_NODE) {
+    if (atual.nodeValue !== novo.nodeValue) atual.nodeValue = novo.nodeValue;
+    return;
+  }
+  for (const { name, value } of [...novo.attributes]) {
+    if (atual.getAttribute(name) !== value) atual.setAttribute(name, value);
+  }
+  for (const { name } of [...atual.attributes]) {
+    if (!novo.hasAttribute(name)) atual.removeAttribute(name);
+  }
+  // Lido antes de juntar os filhos, que levam as opções novas de um select para a página.
+  const valor = novo.value;
+  const marcado = novo.checked;
+  juntarFilhos(atual, novo);
+
+  // Depois que a pessoa mexe num campo, o atributo value não muda mais o que aparece nele.
+  // O estado manda nos campos parados; o que está com o foco fica como a pessoa deixou.
+  if (atual === document.activeElement) return;
+  if (atual.nodeName === 'INPUT' && atual.type === 'checkbox') atual.checked = marcado;
+  else if (atual.nodeName === 'INPUT' && atual.value !== valor) atual.value = valor;
+  else if (atual.nodeName === 'SELECT' && atual.value !== valor) atual.value = valor;
 }
 
 // Como acao(), mas o erro aparece dentro do formulário do Proton, onde a pessoa está olhando.
