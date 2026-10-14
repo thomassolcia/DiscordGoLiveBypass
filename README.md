@@ -157,7 +157,7 @@ De vez em quando o Proton pede um CAPTCHA no login. Ele abre numa janelinha sepa
 <summary><strong>Quero trocar de servidor ou de VPN</strong></summary>
 <br>
 
-Clique em **Gerar outro pela conta do Proton** e escolha o país, ou baixe um arquivo novo e arraste para a janela. A janela pergunta se pode trocar, e o túnel passa a usar o novo servidor na hora.
+Clique em **Trocar de servidor**. Na tela que abre, você escolhe outro arquivo `.conf` ou entra com a conta do Proton e escolhe o país; arrastar um arquivo para a janela abre a mesma tela. Depois de confirmar a troca, o túnel passa a usar o novo servidor na hora.
 
 A configuração gerada pela conta tem validade: o programa pede um ano ao Proton, e a data que ele concedeu aparece na janela quando ela é criada. Depois disso, é só gerar outra.
 </details>
