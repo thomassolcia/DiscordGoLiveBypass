@@ -76,7 +76,14 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             gh release delete $tag --yes
           }
-          gh release create $tag $arquivos --title $tag --generate-notes
+          # Versão que muda o jeito de usar ganha nota escrita à mão, porque a lista automática
+          # de commits não diz a quem atualiza o que fazer diferente. Sem nota, fica a lista.
+          $notas = ".github/notas-de-versao/$tag.md"
+          if (Test-Path $notas) {
+            gh release create $tag $arquivos --title $tag --notes-file $notas
+          } else {
+            gh release create $tag $arquivos --title $tag --generate-notes
+          }
 
       - name: Guardar artefatos
         uses: actions/upload-artifact@v4
