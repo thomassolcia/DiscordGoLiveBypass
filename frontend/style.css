@@ -131,23 +131,47 @@ svg.traco { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: r
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 }
 
-/* Área principal */
+/* Área principal. No tamanho em que a janela abre tudo cabe sem rolar; a barra de rolagem
+   só aparece numa janela reduzida, e aí fina e na cor do tema. */
 main {
   flex: 1;
   overflow-y: auto;
   padding: 4px 24px 12px;
 }
 
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--borda-forte);
+  border: 4px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background-color: var(--fraco); }
+
 .carregando { color: var(--apagado); }
 
-.grade {
+/* As duas telas usam grade com as colunas esticadas até a mesma altura, para os cartões
+   lado a lado terminarem juntos. O que fica no fim de um cartão usa a classe .fim. */
+.inicio {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
   gap: 18px;
-  align-items: start;
 }
 
+.painel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+  gap: 16px;
+}
+.painel > .cartao { display: flex; flex-direction: column; min-width: 0; }
+.fim { margin-top: auto; }
+.fim > .pequeno, p.fim { margin: 10px 0 0; }
+
 .coluna { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+.passos { flex: 1; display: flex; flex-direction: column; }
+.passos hr { width: 100%; border: 0; border-top: 1px solid var(--borda-forte); margin: 16px 0; }
 
 .cartao {
   background: var(--cartao);
@@ -199,7 +223,8 @@ small, .pequeno { color: var(--apagado); font-size: 12px; }
 :root[data-theme="escuro"] .passo { color: #aab2ff; }
 
 /* Apresentação da primeira tela */
-.apresentacao { padding: 6px 4px 0; }
+.apresentacao { padding: 6px 4px 0; display: flex; flex-direction: column; }
+.apresentacao .dica { margin-top: auto; }
 .apresentacao > p { color: var(--apagado); font-size: 15px; max-width: 46ch; }
 
 .vantagens { list-style: none; padding: 0; margin: 18px 0 22px; display: grid; gap: 12px; }
@@ -265,8 +290,12 @@ button.perigo:hover:not(:disabled) { background: none; text-decoration: underlin
 .acoes { display: flex; gap: 10px; flex-wrap: wrap; }
 .acoes > button { flex: 1; }
 
-/* Escolha do arquivo */
-.opcoes { display: grid; gap: 8px; margin-bottom: 12px; }
+/* Escolha do arquivo. A altura mínima é a do formulário de login do Proton, o maior dos
+   conteúdos das abas, e a lista de arquivos rola por dentro quando há muitos. */
+.escolha { display: flex; flex-direction: column; gap: 12px; min-height: 240px; }
+.escolha > .soltar { margin-top: auto; }
+.escolha > .faixa { margin: 0; }
+.opcoes { display: grid; gap: 8px; max-height: 152px; overflow-y: auto; padding: 1px; }
 .opcao {
   width: 100%;
   justify-content: flex-start;
@@ -324,6 +353,7 @@ button.perigo:hover:not(:disabled) { background: none; text-decoration: underlin
   cursor: pointer;
   margin: 2px 0 14px;
 }
+.nota { margin: 10px 0 0; }
 .marcar input {
   appearance: none;
   width: 18px;
@@ -361,6 +391,7 @@ button.perigo:hover:not(:disabled) { background: none; text-decoration: underlin
   pointer-events: none;
 }
 .estado > * { position: relative; }
+.estado .acoes { margin-top: auto; }
 .estado .topo { display: flex; gap: 16px; align-items: center; margin-bottom: 18px; }
 .estado .selo {
   display: grid;
@@ -424,18 +455,6 @@ button.perigo:hover:not(:disabled) { background: none; text-decoration: underlin
 :root[data-theme="escuro"] .servidor .icone { color: #aab2ff; }
 .servidor b { display: block; font-size: 15px; font-weight: 650; }
 
-details summary {
-  cursor: pointer;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-weight: 600;
-}
-details summary::-webkit-details-marker { display: none; }
-details summary::after { content: "+"; color: var(--apagado); font-weight: 400; font-size: 18px; line-height: 1; }
-details[open] summary::after { content: "–"; }
-details[open] summary { margin-bottom: 8px; }
 
 /* Avisos */
 .faixa {
@@ -454,7 +473,7 @@ details[open] summary { margin-bottom: 8px; }
 .faixa.atencao { background: rgba(240, 178, 50, 0.1); border-color: rgba(240, 178, 50, 0.4); }
 .faixa.info { background: var(--destaque-suave); border-color: rgba(88, 101, 242, 0.35); }
 .faixa > span { flex: 1; min-width: 200px; }
-.dentro { margin: 0 0 16px; }
+.estado .atencao-texto { color: var(--amarelo); }
 
 /* Rodapé */
 footer {
@@ -471,7 +490,7 @@ footer button.link, footer button.perigo { font-size: 12px; }
 .confirmar { display: inline-flex; align-items: center; gap: 10px; }
 
 @media (max-width: 760px) {
-  .grade { grid-template-columns: 1fr; }
+  .inicio, .painel { grid-template-columns: 1fr; }
 }
 
 /* Ajustes de densidade: a janela abre com 940 x 660 e a primeira tela cabe sem rolar. */
@@ -511,6 +530,9 @@ footer button.link, footer button.perigo { font-size: 12px; }
 .modal .acoes { flex-direction: column; margin: 16px 0 12px; }
 .modal .acoes > button { flex: none; width: 100%; }
 .modal .rodape-modal { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.modal.largo { width: min(500px, 100%); }
+.modal.largo h2 { margin-bottom: 14px; }
+.modal.largo .rodape-modal { margin-top: 16px; min-height: 40px; }
 .modal .rodape-modal .marcar { margin: 0; }
 button.perigo-cheio { background: transparent; color: var(--vermelho); border: 1px solid rgba(242, 85, 90, 0.4); }
 button.perigo-cheio:hover:not(:disabled) { background: rgba(242, 85, 90, 0.1); }

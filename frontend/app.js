@@ -19,6 +19,7 @@ const s = {
   avisoDiscord: false,
   versaoNova: '',
   confirmandoRemocao: false,
+  troca: false,
   pedidoFechar: null,
   lembrarFechar: false,
   proton: novoProton(),
@@ -50,6 +51,7 @@ const icones = {
   escuro: '<path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11z"/>',
   externo: '<path d="M14 4h6v6"/><path d="M10 14 20 4"/><path d="M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/>',
   recarregar: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
+  trocar: '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
 };
 
 function icone(nome, preenchido = false) {
@@ -164,8 +166,13 @@ async function depoisDeLigar(discordAberto) {
   }
 }
 
+// Com o túnel já configurado, um arquivo escolhido ou arrastado abre a troca de servidor.
 function escolher(info) {
   if (!info || !info.path) return;
+  if (configurado() && !s.troca) {
+    s.troca = true;
+    s.proton = novoProton();
+  }
   s.escolhido = info;
   desenhar();
 }
@@ -173,7 +180,7 @@ function escolher(info) {
 async function carregarCandidatos() {
   try {
     s.candidatos = await go().Candidatos();
-    if (!s.escolhido && s.candidatos.length) s.escolhido = s.candidatos[0];
+    if (!s.escolhido && s.candidatos.length && !configurado()) s.escolhido = s.candidatos[0];
   } catch (e) {
     s.candidatos = [];
   }
@@ -185,21 +192,26 @@ async function carregarCandidatos() {
 function avisos() {
   const app = s.app;
   let html = '';
-  if (s.erro) html += `<div class="faixa erro"><span>${esc(frase(s.erro))}</span></div>`;
-  if (app?.error) html += `<div class="faixa erro"><span>${esc(frase(app.error))}</span></div>`;
+  // Durante a troca de servidor o erro aparece dentro da janela da troca, onde a pessoa está.
+  if (s.erro && !s.troca) html += faixaErro(s.erro, 'erro');
+  if (app?.error) html += faixaErro(app.error, 'erro-servico');
   if (app?.installed && !app.service_running) {
-    html += `<div class="faixa atencao"><span>O serviço do túnel está instalado, mas parado.</span>
+    html += `<div class="faixa atencao" data-chave="parado"><span>O serviço do túnel está instalado, mas parado.</span>
       <button data-acao="consertar" ${s.ocupado ? 'disabled' : ''}>Consertar</button></div>`;
   }
   if (app?.needs_update) {
-    html += `<div class="faixa info"><span>Esta janela é da versão ${esc(app.version)} e o serviço instalado é da ${esc(app.status.version)}.</span>
+    html += `<div class="faixa info" data-chave="atualizar"><span>Esta janela é da versão ${esc(app.version)} e o serviço instalado é da ${esc(app.status.version)}.</span>
       <button data-acao="atualizar" ${s.ocupado ? 'disabled' : ''}>${s.ocupado === 'atualizar' ? 'Atualizando…' : 'Atualizar'}</button></div>`;
   }
   if (s.versaoNova) {
-    html += `<div class="faixa info"><span>Saiu a versão ${esc(s.versaoNova)}.</span>
+    html += `<div class="faixa info" data-chave="versao"><span>Saiu a versão ${esc(s.versaoNova)}.</span>
       <button data-acao="baixar">${icone('externo')} Baixar</button></div>`;
   }
   return html;
+}
+
+function faixaErro(texto, chave) {
+  return `<div class="faixa erro" data-chave="${chave}"><span>${esc(frase(texto))}</span></div>`;
 }
 
 function zonaSoltar(texto) {
@@ -240,14 +252,14 @@ function abasArquivo() {
 function formProton() {
   const p = s.proton;
   const ocupado = s.ocupado === 'proton';
-  const erro = p.erro ? `<div class="faixa erro"><span>${esc(frase(p.erro))}</span></div>` : '';
+  const erro = p.erro ? faixaErro(p.erro, 'erro-proton') : '';
 
   if (p.etapa === 'verificacao') {
-    return `<div class="esperando">${icone('gira')}<span>O Proton pediu uma verificação de segurança. Resolva na janela que abriu: ela fecha sozinha quando terminar.</span></div>`;
+    return `<div class="esperando" data-chave="proton-verificacao">${icone('gira')}<span>O Proton pediu uma verificação de segurança. Resolva na janela que abriu: ela fecha sozinha quando terminar.</span></div>`;
   }
 
   if (p.etapa === 'codigo') {
-    return `<div class="formulario">${erro}
+    return `<div class="formulario" data-chave="proton-codigo">${erro}
         <label class="campo"><span>Código de verificação em duas etapas</span>
           <input class="codigo" data-campo="codigo" inputmode="numeric" maxlength="7" autocomplete="one-time-code" value="${esc(p.codigo)}" placeholder="000000"></label>
         <div class="linha-acoes">
@@ -261,24 +273,36 @@ function formProton() {
     const automatico = p.paises.length ? `Automático: ${p.paises[0].melhor}, o melhor agora` : 'Automático';
     const opcoes = p.paises.map((pais) => `<option value="${esc(pais.code)}" ${p.pais === pais.code ? 'selected' : ''}>
         ${esc(pais.label)} · ${pais.quantos} ${pais.quantos === 1 ? 'servidor' : 'servidores'}</option>`).join('');
-    return `<div class="formulario">${erro}
+    return `<div class="formulario" data-chave="proton-paises">${erro}
         <label class="campo"><span>Servidor gratuito</span>
           <select data-campo="pais"><option value="" ${p.pais === '' ? 'selected' : ''}>${esc(automatico)}</option>${opcoes}</select></label>
         <div class="linha-acoes">
-          <button class="link" data-acao="proton-cancelar">Cancelar</button>
+          <button class="link" data-acao="proton-cancelar">Voltar</button>
           <button class="principal" data-acao="proton-gerar" ${ocupado ? 'disabled' : ''}>${ocupado ? 'Gerando…' : 'Gerar o arquivo'}</button>
         </div>
       </div>`;
   }
 
-  return `<div class="formulario">${erro}
+  return `<div class="formulario" data-chave="proton-login">${erro}
       <label class="campo"><span>E-mail da conta do Proton</span>
         <input type="email" data-campo="email" autocomplete="username" value="${esc(p.email)}"></label>
       <label class="campo"><span>Senha</span>
         <input type="password" data-campo="senha" autocomplete="current-password" value="${esc(p.senha)}"></label>
       <button class="principal largo" data-acao="proton-entrar" ${ocupado ? 'disabled' : ''}>${ocupado ? 'Entrando…' : 'Entrar'}</button>
-      <p class="pequeno">A senha só serve para entrar: ela não é gravada, e a sessão é encerrada assim que o arquivo da VPN é gerado.
-        Ainda não tem conta? <button class="link pequeno" data-acao="proton-criar">Crie uma grátis</button></p>
+      <p class="pequeno">A senha não fica gravada. Não tem conta? <button class="link pequeno" data-acao="proton-criar">Crie uma grátis</button></p>
+    </div>`;
+}
+
+// A escolha do arquivo é a mesma na primeira tela e na troca de servidor. A área tem altura
+// fixa para nada pular quando a pessoa troca de aba ou avança no login.
+function escolhaArquivo(textoSoltar) {
+  const aba = s.proton.aba;
+  return `${abasArquivo()}
+    <div class="escolha" data-chave="escolha-${aba}">
+      ${aba === 'proton' ? formProton() : `
+        ${listaArquivos()}
+        ${s.escolhido?.error ? faixaErro(s.escolhido.error, 'erro-arquivo') : ''}
+        ${zonaSoltar(textoSoltar)}`}
     </div>`;
 }
 
@@ -292,11 +316,12 @@ function marcarAbrirDiscord() {
 
 function telaInicial() {
   const jaInstalado = s.app?.service_running;
-  const pronto = s.escolhido && !s.escolhido.error;
+  // Na aba do Proton, o arquivo marcado na outra aba não é o que a pessoa está olhando.
+  const pronto = s.proton.aba === 'arquivo' && s.escolhido && !s.escolhido.error;
   const ativando = s.ocupado === 'ativar';
 
   return `${avisos()}
-    <div class="grade">
+    <div class="inicio" data-chave="inicio">
       <section class="apresentacao">
         <span class="rotulo">Go Live no Brasil</span>
         <h1>Seu Go Live de volta no Discord</h1>
@@ -314,27 +339,19 @@ function telaInicial() {
             <li>Escolha <b>Windows</b> e um servidor gratuito fora do Brasil.</li>
             <li>Clique em <b>Create</b> e baixe. O arquivo aparece aqui sozinho.</li>
           </ol>
-          <p class="pequeno">Prefere não baixar nada? Na aba <b>Entrar com o Proton</b>, o programa gera o arquivo com a sua conta.</p>
           <button class="link" data-acao="proton">${icone('externo')} Abrir a página do Proton</button>
         </div>
       </section>
 
       <div class="coluna">
-        <section class="cartao">
+        <section class="cartao passos">
           <h2><span class="passo">1</span> Arquivo da VPN</h2>
-          ${abasArquivo()}
-          ${s.proton.aba === 'proton' ? formProton() : `
-            ${listaArquivos()}
-            ${s.escolhido?.error ? `<div class="faixa erro"><span>${esc(frase(s.escolhido.error))}</span></div>` : ''}
-            ${zonaSoltar('Arraste o arquivo <b>.conf</b> para cá')}`}
-        </section>
-        <section class="cartao">
+          ${escolhaArquivo('Arraste o arquivo <b>.conf</b> para cá')}
+          <hr>
           <h2><span class="passo">2</span> Ativar</h2>
-          <p class="apagado">${jaInstalado
-            ? 'O serviço do túnel já está instalado. É só ativar.'
-            : 'O Windows vai pedir permissão de administrador uma única vez, para instalar o serviço que mantém o túnel ligado.'}</p>
           ${marcarAbrirDiscord()}
-          <button class="principal grande largo" data-acao="ativar" ${pronto && !s.ocupado ? '' : 'disabled'}>
+          <button class="principal grande largo" data-acao="ativar" ${pronto && !s.ocupado ? '' : 'disabled'}
+            title="${jaInstalado ? 'O serviço do túnel já está instalado' : 'O Windows pede permissão de administrador uma única vez'}">
             ${ativando ? 'Ativando…' : 'Ativar'}</button>
         </section>
       </div>
@@ -347,6 +364,11 @@ function cartaoEstado(st) {
   let simbolo = icone('alerta');
   let titulo = 'Algo deu errado';
   let detalhe = esc(frase(st.error));
+  // Um Discord aberto antes do túnel precisa reiniciar. O aviso entra no lugar da frase do
+  // estado e o botão principal vira o de reiniciar, sem o cartão crescer.
+  const abertos = app.discord_open || [];
+  const reiniciar = st.state === 'ligado' && s.avisoDiscord && abertos.length > 0 && !s.saida?.blocked;
+  const nomeAberto = abertos.length === 1 ? abertos[0] : 'Discord';
 
   switch (st.state) {
     case 'ligado':
@@ -356,7 +378,9 @@ function cartaoEstado(st) {
         classe = 'alerta';
       } else {
         titulo = 'Go Live liberado';
-        detalhe = 'Só o Discord está passando pelo túnel.';
+        detalhe = reiniciar
+          ? `<span class="atencao-texto">O ${esc(nomeAberto)} já estava aberto. Reinicie para ele entrar no túnel.</span>`
+          : 'Só o Discord está passando pelo túnel.';
         classe = 'ok';
         simbolo = icone('check');
       }
@@ -392,14 +416,13 @@ function cartaoEstado(st) {
     }
   }
 
-  const reiniciar = s.avisoDiscord && app.discord_open.length
-    ? `<div class="faixa atencao dentro"><span>O ${esc(app.discord_open.join(' e o '))} já estava aberto. Reinicie para ele entrar no túnel.</span>
-        <button data-acao="reiniciar" ${s.ocupado ? 'disabled' : ''}>${icone('recarregar')} ${s.ocupado === 'reiniciar' ? 'Reiniciando…' : 'Reiniciar'}</button></div>`
-    : '';
-
-  const discord = app.discord
+  let discord = app.discord
     ? `<button class="principal grande" data-acao="abrir-discord" ${s.ocupado ? 'disabled' : ''}>${icone('play', true)} Abrir o ${esc(app.discord)}</button>`
     : '';
+  if (reiniciar) {
+    discord = `<button class="principal grande" data-acao="reiniciar" ${s.ocupado ? 'disabled' : ''}>${icone('recarregar')}
+      ${s.ocupado === 'reiniciar' ? 'Reiniciando…' : `Reiniciar o ${esc(nomeAberto)}`}</button>`;
+  }
   const alternar = st.enabled
     ? `<button class="grande" data-acao="desligar" ${s.ocupado ? 'disabled' : ''}>${icone('power')} ${s.ocupado === 'desligar' ? 'Desligando…' : 'Desligar'}</button>`
     : `<button class="principal grande" data-acao="ligar" ${s.ocupado ? 'disabled' : ''}>${icone('power')} ${s.ocupado === 'ligar' ? 'Ligando…' : 'Ligar o túnel'}</button>`;
@@ -410,59 +433,73 @@ function cartaoEstado(st) {
         <div><div class="titulo">${esc(titulo)}</div><div class="detalhe">${detalhe}</div></div>
       </div>
       ${saida}
-      ${reiniciar}
       <div class="acoes">${st.enabled ? discord + alternar : alternar}</div>
     </section>`;
 }
 
+// Duas linhas de dois cartões. A grade iguala a altura dos cartões de cada linha, e o que
+// cresce num deles cresce a linha inteira junto.
 function painel() {
   const st = s.app.status;
-  const trocar = s.escolhido && !s.escolhido.error && ['escolhido', 'proton'].includes(s.escolhido.origin);
   const handshake = st.handshake_s < 0 ? 'nenhum ainda' : `há ${st.handshake_s} s`;
 
   return `${avisos()}
-    <div class="grade">
-      <div class="coluna">
-        ${cartaoEstado(st)}
-        <section class="cartao">
-          <h2>Preferências</h2>
-          ${marcarAbrirDiscord()}
-          <label class="linha-pref">
-            <span>Ao clicar no X</span>
-            <select data-pref="ao_fechar">
-              <option value="perguntar" ${s.prefs.ao_fechar === 'perguntar' ? 'selected' : ''}>Perguntar</option>
-              <option value="bandeja" ${s.prefs.ao_fechar === 'bandeja' ? 'selected' : ''}>Ir para a bandeja</option>
-              <option value="parar" ${s.prefs.ao_fechar === 'parar' ? 'selected' : ''}>Desligar o túnel e fechar</option>
-            </select>
-          </label>
-          <p class="pequeno">Minimizar esconde esta janela na bandeja, perto do relógio. O túnel não depende dela: fica ligado mesmo com ela fechada e volta sozinho quando o Windows inicia.</p>
-        </section>
-      </div>
+    <div class="painel" data-chave="painel">
+      ${cartaoEstado(st)}
+      <section class="cartao">
+        <h2>Servidor da VPN</h2>
+        <div class="servidor">
+          <span class="icone">${icone('servidor')}</span>
+          <div><b>${esc(st.server || '-')}</b><small>${esc(st.endpoint || '')}</small></div>
+        </div>
+        <p class="pequeno">Dá para trocar por outro arquivo <b>.conf</b> ou gerar um novo pela sua conta do Proton. Arrastar o arquivo para a janela também funciona.</p>
+        <div class="acoes fim">
+          <button class="grande" data-acao="abrir-troca" ${s.ocupado ? 'disabled' : ''}>${icone('trocar')} Trocar de servidor</button>
+        </div>
+      </section>
+      <section class="cartao">
+        <h2>Preferências</h2>
+        ${marcarAbrirDiscord()}
+        <label class="linha-pref">
+          <span>Ao clicar no X</span>
+          <select data-pref="ao_fechar">
+            <option value="perguntar" ${s.prefs.ao_fechar === 'perguntar' ? 'selected' : ''}>Perguntar</option>
+            <option value="bandeja" ${s.prefs.ao_fechar === 'bandeja' ? 'selected' : ''}>Ir para a bandeja</option>
+            <option value="parar" ${s.prefs.ao_fechar === 'parar' ? 'selected' : ''}>Desligar o túnel e fechar</option>
+          </select>
+        </label>
+        <p class="pequeno fim">Minimizar esconde a janela na bandeja, perto do relógio. O túnel não depende dela e volta sozinho quando o Windows inicia.</p>
+      </section>
+      <section class="cartao">
+        <h2>Detalhes técnicos</h2>
+        <div class="par"><span>Último handshake</span><b>${esc(handshake)}</b></div>
+        <div class="par"><span>Recebido / enviado</span><b>${bytes(st.rx)} / ${bytes(st.tx)}</b></div>
+        <div class="par"><span>Faixas do Discord no túnel</span><b>${st.routes}</b></div>
+        <div class="par"><span>Versão do serviço</span><b>${esc(st.version)}</b></div>
+      </section>
+    </div>`;
+}
 
-      <div class="coluna">
-        <section class="cartao">
-          <h2>Servidor da VPN</h2>
-          <div class="servidor">
-            <span class="icone">${icone('servidor')}</span>
-            <div><b>${esc(st.server || '-')}</b><small>${esc(st.endpoint || '')}</small></div>
-          </div>
-          ${trocar ? `<div class="faixa info"><span>Trocar para <b>${esc(s.escolhido.server)}</b>?</span>
-            <span class="confirmar"><button class="principal" data-acao="trocar">Trocar</button>
-            <button data-acao="cancelar-troca">Cancelar</button></span></div>` : ''}
-          ${s.escolhido?.error ? `<div class="faixa erro"><span>${esc(frase(s.escolhido.error))}</span></div>` : ''}
-          ${s.proton.aba === 'proton' ? formProton() : `
-            ${zonaSoltar('Para trocar de servidor, arraste outro <b>.conf</b>')}
-            <p></p>
-            <button class="link" data-aba="proton">Gerar outro pela conta do Proton</button>`}
-        </section>
-        <details class="cartao">
-          <summary>Detalhes técnicos</summary>
-          <div class="par"><span>Último handshake</span><b>${esc(handshake)}</b></div>
-          <div class="par"><span>Recebido / enviado</span><b>${bytes(st.rx)} / ${bytes(st.tx)}</b></div>
-          <div class="par"><span>Faixas do Discord no túnel</span><b>${st.routes}</b></div>
-          <div class="par"><span>Versão do serviço</span><b>${esc(st.version)}</b></div>
-        </details>
-      </div>
+// A troca de servidor abre por cima do painel, com as mesmas abas da primeira tela, em vez
+// de esticar o cartão do servidor e empurrar o resto da janela.
+function modalTroca() {
+  if (!s.troca) return '';
+  const pronto = s.escolhido && !s.escolhido.error;
+  const nome = pronto ? esc(s.escolhido.server || s.escolhido.name) : '';
+  const confirmar = s.proton.aba === 'arquivo'
+    ? `<button class="principal" data-acao="trocar" ${pronto && !s.ocupado ? '' : 'disabled'}>
+        ${s.ocupado === 'trocar' ? 'Trocando…' : pronto ? `Trocar para ${nome}` : 'Escolha um arquivo'}</button>`
+    : '';
+  return `<div class="fundo-modal" data-acao="fechar-troca" data-chave="modal-troca">
+      <section class="modal largo" role="dialog" aria-modal="true" aria-labelledby="titulo-troca">
+        <h2 id="titulo-troca">Trocar o servidor da VPN</h2>
+        ${s.erro ? faixaErro(s.erro, 'erro-troca') : ''}
+        ${escolhaArquivo('Arraste outro arquivo <b>.conf</b> para cá')}
+        <div class="linha-acoes rodape-modal">
+          <button class="link" data-acao="fechar-troca" ${s.ocupado ? 'disabled' : ''}>Cancelar</button>
+          ${confirmar}
+        </div>
+      </section>
     </div>`;
 }
 
@@ -486,7 +523,7 @@ function modalFechar() {
   const pedido = s.pedidoFechar;
   if (!pedido) return '';
   const ocupado = s.ocupado === 'fechar' ? 'disabled' : '';
-  return `<div class="fundo-modal" data-acao="fechar-cancelar">
+  return `<div class="fundo-modal" data-acao="fechar-cancelar" data-chave="modal-fechar">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-fechar">
         <h2 id="titulo-fechar">Fechar o DiscordGoLiveBypass?</h2>
         <p>${pedido.bandeja
@@ -513,7 +550,7 @@ function desenhar() {
   document.getElementById('versao').textContent = s.app.version;
   aplicar(tela, configurado() ? painel() : telaInicial());
   aplicar(rodape, desenharRodape());
-  aplicar(sobreposicao, modalFechar());
+  aplicar(sobreposicao, modalTroca() + modalFechar());
 }
 
 function aplicar(alvo, html) {
@@ -624,11 +661,30 @@ const acoes = {
   'abrir-discord': () => acao('abrir-discord', () => go().AbrirDiscord()),
   trocar: () => acao('trocar', async () => {
     await go().TrocarArquivo(s.escolhido.path);
+    s.troca = false;
     s.escolhido = null;
+    s.proton = novoProton();
     s.saida = null;
     s.conferidoEm = 0;
   }),
-  'cancelar-troca': () => { s.escolhido = null; desenhar(); },
+  'abrir-troca': () => {
+    s.troca = true;
+    s.escolhido = null;
+    s.erro = '';
+    s.proton = novoProton();
+    desenhar();
+    carregarCandidatos();
+  },
+  // Fechar no meio do login encerra a sessão que o Proton já tinha aberto.
+  'fechar-troca': () => {
+    if (s.ocupado) return;
+    if (s.proton.etapa === 'paises') go().ProtonCancelar();
+    s.troca = false;
+    s.escolhido = null;
+    s.erro = '';
+    s.proton = novoProton();
+    desenhar();
+  },
   reiniciar: () => acao('reiniciar', async () => {
     await go().ReiniciarDiscord();
     s.avisoDiscord = false;
@@ -715,7 +771,10 @@ document.addEventListener('change', (evento) => {
 });
 
 document.addEventListener('keydown', (evento) => {
-  if (evento.key === 'Escape' && s.pedidoFechar) acoes['fechar-cancelar']();
+  if (evento.key === 'Escape') {
+    if (s.pedidoFechar) acoes['fechar-cancelar']();
+    else if (s.troca) acoes['fechar-troca']();
+  }
   if (evento.key === 'Enter' && evento.target.matches('input[data-campo]')) {
     evento.preventDefault();
     acoes['proton-entrar']();
