@@ -64,7 +64,40 @@ Na primeira vez, o programa acha o `.conf` na pasta Downloads, pergunta se pode 
 
 Se houver mais de um Discord na máquina, o normal e o PTB, ou o Canary junto, o `.bat` pergunta qual deles abrir antes de começar. Com um só instalado ele não pergunta nada e vai direto.
 
-Uma janela preta mostra as etapas e fecha sozinha quando o Discord abre. O túnel fica ligado em segundo plano enquanto o Discord estiver aberto e se desliga sozinho meio minuto depois que você fecha o Discord.
+Uma janela preta mostra as etapas e fecha sozinha quando o Discord abre. Esta é uma abertura de verdade, com o servidor gratuito dos Estados Unidos e o arquivo já guardado:
+
+```
+ > 1/4  Procurando a instalacao do Discord
+   +  Discord Canary encontrado
+      C:\Users\voce\AppData\Local\DiscordCanary\app-1.0.1227\DiscordCanary.exe
+   !  o Discord Canary ja esta aberto, sera reiniciado no fim
+
+ > 2/4  Procurando o seu arquivo de VPN
+   +  usando o arquivo guardado da primeira vez
+      C:\Users\voce\AppData\Local\DiscordGoLiveBypass\wireguard.conf
+   +  configuracao WireGuard valida, servidor 146.70.202.34:51820
+
+ > 3/4  Ligando o tunel so para o Discord
+   -  o Windows vai pedir permissao de administrador, e ela que deixa criar o adaptador de rede do tunel
+   +  tunel ligado, 5 faixas de IP do Discord passam por ele
+   +  o Discord ve a saida em Estados Unidos (US), 768 ms
+
+ > 4/4  Abrindo o Discord Canary
+   +  instancia antiga encerrada
+   +  Discord Canary, pid 10768 aberto
+
+ +- tudo pronto ---------------------------------------------+
+ |  saida     Estados Unidos (US)                            |
+ |  ip visto  146.70.202.37                                  |
+ |  servidor  146.70.202.34:51820                            |
+ |  resposta  768 ms                                         |
+ |  discord   Discord Canary, pid 10768                      |
+ |  tunel     fica ligado enquanto o Discord estiver aberto  |
+ |  tempo     7s                                             |
+ +-----------------------------------------------------------+
+```
+
+O túnel fica ligado em segundo plano enquanto o Discord estiver aberto e se desliga sozinho meio minuto depois que você fecha o Discord.
 
 Se a janela ficar aberta com uma mensagem, algo falhou: procure a mensagem no [FAQ](#faq).
 
@@ -294,7 +327,7 @@ O processo do túnel cria um adaptador com o driver WireGuardNT e põe nele só 
 
 O arquivo do Proton não traz endereço IPv6. As rotas IPv6 do Discord vão para o túnel mesmo assim: lá elas não têm saída, e a ideia é o Discord cair para o IPv4, que passa pelo túnel. Sem isso, numa rede com IPv6 parte do tráfego escaparia pelo IP brasileiro, que é exatamente a divergência que derrubou a 1.x.
 
-Com o túnel de pé, o launcher pergunta ao próprio Discord, em `discord.com/api/v9/auth/location-metadata`, de que país ele acha que você é. Esse pedido faz o mesmo caminho que o app vai fazer. Se a resposta ainda for um país recusado, o túnel é desligado e a abertura para ali, em vez de entregar um Discord que parece liberado e não está. Só então o Discord abre, sem nenhum parâmetro especial.
+Com o túnel de pé, o launcher pergunta ao gateway do Discord, em `gateway.discord.gg/cdn-cgi/trace`, com que IP e de que país você chega. É o IP do gateway que decide o que a conta pode fazer, e o pedido faz o mesmo caminho que o app vai fazer. O `location-metadata` do Discord, que responde a mesma pergunta, fica só de reserva: ele limita os pedidos por IP, e o servidor gratuito da VPN é dividido com muita gente. Se a resposta ainda for um país recusado, o túnel é desligado e a abertura para ali, em vez de entregar um Discord que parece liberado e não está. Só então o Discord abre, sem nenhum parâmetro especial.
 
 O processo do túnel acompanha o `Discord.exe`. Quando o Discord fica fechado por mais de 30 segundos, prazo que cobre o reinício do próprio atualizador, ele desliga o adaptador, remove o driver se nenhum outro programa o estiver usando e sai.
 
