@@ -32,21 +32,11 @@ jobs:
           if (-not $versao.StartsWith('v')) { $versao = 'dev' }
           "VERSAO=$versao" | Out-File -Encoding ascii -Append $env:GITHUB_ENV
 
-      # Executavel sem nome, sem descricao e sem versao e o retrato do que antivirus
-      # heuristico marca. Os dados ficam em winres/winres.json e viram recurso do PE.
-      - name: Gravar identificacao no executavel
-        shell: pwsh
-        run: |
-          # Recurso de versao so aceita numero: build fora de tag entra como 0.0.0.
-          $numero = $env:VERSAO -replace '^v', ''
-          if ($numero -notmatch '^\d+(\.\d+)*$') { $numero = '0.0.0' }
-          go run github.com/tc-hib/go-winres@v0.3.3 make --arch amd64 --file-version $numero --product-version $numero
-
-      # Sem -s -w de proposito: binario pequeno e sem simbolos parece empacotado, que e
-      # justamente o padrao que a heuristica dos antivirus procura. Custa uns 4 MB.
+      # O mesmo script de quem compila em casa: baixa o WireGuardNT com hash fixo, grava a
+      # identificacao e o driver como recurso do PE e compila com ele embutido.
       - name: Compilar
         shell: pwsh
-        run: go build -trimpath -ldflags "-X main.version=$env:VERSAO" -o DiscordGoLiveBypass.exe .
+        run: ./Compilar.ps1 -Versao $env:VERSAO
 
       - name: Empacotar e gerar somas
         shell: pwsh
@@ -54,7 +44,7 @@ jobs:
           $versao = $env:VERSAO
           $zip = "DiscordGoLiveBypass-$versao-windows-amd64.zip"
 
-          Compress-Archive -Force -DestinationPath $zip -Path DiscordGoLiveBypass.exe, Abrir-Discord.bat, Criar-atalho.ps1, README.md, LICENSE
+          Compress-Archive -Force -DestinationPath $zip -Path DiscordGoLiveBypass.exe, Abrir-Discord.bat, Criar-atalho.ps1, Validar-rota.ps1, README.md, LICENSE, LICENCA-WireGuardNT.txt
 
           $linhas = foreach ($arquivo in @($zip, 'DiscordGoLiveBypass.exe')) {
             '{0}  {1}' -f (Get-FileHash $arquivo -Algorithm SHA256).Hash, $arquivo

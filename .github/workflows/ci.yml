@@ -28,5 +28,8 @@ jobs:
       - name: Testar
         run: go test ./...
 
+      # Pelo mesmo script da release: um driver que não embute ou um hash que mudou aparecem
+      # aqui, e não no dia da tag.
       - name: Compilar
-        run: go build ./...
+        shell: pwsh
+        run: ./Compilar.ps1
