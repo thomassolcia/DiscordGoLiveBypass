@@ -25,7 +25,7 @@ Para gerar o executável igual ao da release, com o driver WireGuardNT embutido:
 .\Compilar.ps1
 ```
 
-Testar o túnel de verdade pede três coisas que a CI não tem: administrador, um Discord instalado e um arquivo WireGuard seu. Se a sua mudança mexe em `tunnel_windows.go`, `elevate_windows.go`, `routes.go` ou no fluxo do `main.go`, rode o programa compilado, abra uma call e diga no pull request o que você testou: assistir a uma transmissão, transmitir, fechar o Discord e ver o túnel cair sozinho. O `Validar-rota.ps1` ajuda a mostrar que o tráfego saiu pelo adaptador certo.
+Testar o túnel de verdade pede três coisas que a CI não tem: administrador, um Discord instalado e um arquivo WireGuard seu. Se a sua mudança mexe no serviço, no túnel ou nas rotas (`service_windows.go`, `engine_windows.go`, `state.go`, `routes.go`), rode o programa compilado, ative, abra uma call e diga no pull request o que você testou: assistir a uma transmissão, transmitir, desligar e ligar o túnel pela janela. Se mexe na janela (`gui_windows.go`, `tray_windows.go` ou `frontend/`), confira os dois temas e a bandeja. O `Validar-rota.ps1` ajuda a mostrar que o tráfego saiu pelo adaptador certo.
 
 ## Como o código é escrito
 
@@ -67,3 +67,7 @@ Um commit por mudança lógica. Corpo de commit só quando a motivação não ap
 2. Mantenha o pull request focado em um assunto. Dois consertos independentes viram dois pull requests.
 3. A CI precisa passar: ela roda `go vet`, `go test` e o `Compilar.ps1`.
 4. Na descrição, conte o que mudou, por quê e como você testou. Se não deu para testar com o Discord de verdade, diga isso também.
+
+## A janela
+
+A página fica em `frontend/`, em HTML, CSS e JavaScript sem framework e sem etapa de build, para o projeto continuar compilando com um comando só. Cada método exportado do `App`, em `gui_windows.go`, aparece na página como `window.go.main.App.<Método>`. As cores vêm das variáveis no começo do `style.css`, uma paleta para cada tema: cor nova entra nas duas.
