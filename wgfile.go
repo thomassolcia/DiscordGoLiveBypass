@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -112,4 +113,15 @@ func sameFile(a, b string) (bool, error) {
 		return false, err
 	}
 	return os.SameFile(ia, ib), nil
+}
+
+// O Proton escreve o nome do servidor como comentário logo depois do [Peer], como
+// "# US-FREE#57". É o que a pessoa reconhece, bem mais que um IP.
+var peerLabelRe = regexp.MustCompile(`(?mi)^\s*\[Peer\]\s*\r?\n(?:\s*\r?\n)*\s*#\s*([^\r\n]{1,64}?)\s*$`)
+
+func serverLabel(text string) string {
+	if match := peerLabelRe.FindStringSubmatch(text); match != nil {
+		return match[1]
+	}
+	return ""
 }

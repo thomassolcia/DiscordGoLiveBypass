@@ -3,6 +3,7 @@ module discordgolivebypass
 go 1.26.0
 
 require (
+	github.com/ProtonMail/go-srp v0.0.7
 	github.com/wailsapp/wails/v2 v2.16.0
 	golang.org/x/sys v0.49.0
 	golang.zx2c4.com/wireguard v0.0.0-20261006164505-2631ce99a06f
@@ -11,7 +12,11 @@ require (
 
 require (
 	git.sr.ht/~jackmordaunt/go-toast/v2 v2.0.3 // indirect
+	github.com/ProtonMail/bcrypt v0.0.0-20210511135022-227b4adcab57 // indirect
+	github.com/ProtonMail/go-crypto v1.1.6 // indirect
 	github.com/bep/debounce v1.2.1 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
+	github.com/cronokirby/saferith v0.33.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect

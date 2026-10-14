@@ -3,10 +3,13 @@
 package main
 
 import (
+	"bytes"
+	"crypto/ed25519"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func writeConf(t *testing.T, text string) string {
@@ -68,5 +71,20 @@ func TestValidateConfRecusa(t *testing.T) {
 		if err != nil && strings.Contains(err.Error(), "BwcHBwcH") {
 			t.Errorf("%s: a mensagem de erro vazou a chave privada: %v", name, err)
 		}
+	}
+}
+
+// O arquivo montado a partir da conta do Proton precisa passar na mesma validação que o
+// serviço aplica a qualquer .conf, senão o login daria certo e o Ativar falharia.
+func TestArquivoDoProtonPassaNaValidacao(t *testing.T) {
+	server := protonServer{Name: "US-FREE#57", EntryIP: "203.0.113.57", PublicKey: "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg="}
+	text := buildProtonConf(server, x25519FromEd25519(ed25519.NewKeyFromSeed(bytes.Repeat([]byte{7}, 32))), time.Now().AddDate(1, 0, 0))
+
+	cfg, err := parseConf(text, "gerado")
+	if err != nil {
+		t.Fatalf("parseConf recusou o arquivo gerado: %v", err)
+	}
+	if summary := summarize(cfg, text); summary.Server != "US-FREE#57" || summary.Endpoint != "203.0.113.57:51820" {
+		t.Errorf("summarize = %+v", summary)
 	}
 }

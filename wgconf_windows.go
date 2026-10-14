@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
-	"regexp"
 	"strings"
 
 	"golang.zx2c4.com/wireguard/windows/conf"
@@ -101,17 +100,6 @@ func redactKeys(message, raw string) string {
 		}
 	}
 	return message
-}
-
-// O Proton escreve o nome do servidor como comentário logo depois do [Peer], como
-// "# US-FREE#57". É o que a pessoa reconhece, bem mais que um IP.
-var peerLabelRe = regexp.MustCompile(`(?mi)^\s*\[Peer\]\s*\r?\n(?:\s*\r?\n)*\s*#\s*([^\r\n]{1,64}?)\s*$`)
-
-func serverLabel(text string) string {
-	if match := peerLabelRe.FindStringSubmatch(text); match != nil {
-		return match[1]
-	}
-	return ""
 }
 
 func summarize(cfg *conf.Config, text string) confSummary {
