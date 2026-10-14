@@ -14,7 +14,12 @@
 
 </div>
 
-Você abre o programa, escolhe o arquivo da sua VPN e clica em Ativar. A partir daí um serviço do Windows mantém um túnel WireGuard que leva apenas o tráfego do Discord para fora do Brasil, desde que o computador liga. Você abre o Discord pelo atalho de sempre e o Go Live funciona.
+Você abre o programa, entra com a sua conta gratuita do Proton VPN ou escolhe um arquivo WireGuard, e clica em Ativar. A partir daí um serviço do Windows mantém um túnel que leva apenas o tráfego do Discord para fora do Brasil, desde que o computador liga. Você abre o Discord pelo atalho de sempre e o Go Live funciona.
+
+<p align="center">
+  <img src="docs/janela-escura.png" alt="Janela do DiscordGoLiveBypass no tema escuro, com o Go Live liberado e o Discord saindo pelos Estados Unidos" width="49%">
+  <img src="docs/janela-clara.png" alt="A mesma janela no tema claro" width="49%">
+</p>
 
 > **Windows 10 e 11.** Só o Discord muda de rota: o jogo que você está transmitindo, o navegador e o resto do computador continuam na sua conexão normal. O servidor de saída é o da sua VPN, então a confiança que vale é a que você tem nela.
 
@@ -40,21 +45,20 @@ Desde a 2.0, o programa liga um túnel WireGuard e põe nele as faixas de IP do 
 
 ## Como usar
 
-### O arquivo da VPN
+### A VPN
 
-O túnel precisa de um servidor WireGuard. O jeito gratuito é uma conta no Proton VPN:
+O túnel precisa de um servidor WireGuard. O jeito gratuito é uma conta no Proton VPN, criada em [protonvpn.com](https://protonvpn.com). Não precisa instalar o aplicativo do Proton. Com a conta em mãos, há dois caminhos:
 
-1. Crie uma conta gratuita em [protonvpn.com](https://protonvpn.com).
-2. Em [account.protonvpn.com](https://account.protonvpn.com/downloads), abra **Downloads** e vá até **WireGuard configuration**.
-3. Escolha a plataforma **Windows** e um servidor gratuito fora do Brasil, clique em **Create** e baixe o arquivo `.conf`.
+- **Entrar com a conta dentro do programa.** Na aba **Entrar com o Proton**, você digita o e-mail e a senha, escolhe o país e o programa gera a configuração sozinho. Se a conta tiver verificação em duas etapas, ele pede o código; se o Proton pedir um CAPTCHA, ele abre numa janelinha.
+- **Baixar o arquivo no site.** Em [account.protonvpn.com](https://account.protonvpn.com/downloads), abra **Downloads**, vá até **WireGuard configuration**, escolha **Windows** e um servidor gratuito fora do Brasil, clique em **Create** e baixe o `.conf`.
 
-Não precisa instalar o aplicativo do Proton: o arquivo basta. Qualquer outra VPN que entregue um arquivo WireGuard serve do mesmo jeito, e quem já paga uma usa o arquivo dela.
+Qualquer outra VPN que entregue um arquivo WireGuard serve do mesmo jeito, e quem já paga uma usa o arquivo dela.
 
 ### Da primeira vez
 
 1. Baixe o `.zip` na aba [Releases](../../releases) e extraia numa pasta.
 2. Abra o `DiscordGoLiveBypass.exe`.
-3. O arquivo que você baixou aparece sozinho na lista, achado na pasta Downloads. Se ele estiver em outro lugar, arraste para a janela ou clique em **Escolher**.
+3. Entre com a conta do Proton, ou deixe a janela achar o `.conf` que você baixou: ele aparece sozinho na lista, vindo da pasta Downloads. Se estiver em outro lugar, arraste para a janela ou clique em **Escolher**.
 4. Clique em **Ativar** e responda **Sim** no aviso do Windows. É a única vez que ele pede permissão de administrador: para instalar o serviço que mantém o túnel.
 
 Com a opção marcada, o Discord abre sozinho quando o túnel liga. Se ele já estava aberto, a janela avisa para reiniciar, para as conexões que ele já tinha também passarem pelo túnel.
@@ -65,7 +69,9 @@ A instalação copia o programa para Arquivos de Programas e põe um atalho no m
 
 Nada. O túnel liga sozinho quando o Windows inicia, e você abre o Discord pelo atalho de sempre.
 
-A janela serve para ver e mexer: mostra em que país o Discord vê você, liga e desliga o túnel, troca o servidor e abre o Discord. Minimizar esconde a janela na bandeja, perto do relógio, e o menu do ícone faz as mesmas coisas. Fechar a janela não desliga o túnel. O tema claro, escuro ou o do Windows se escolhe no canto de cima.
+A janela serve para ver e mexer: mostra em que país o Discord vê você, liga e desliga o túnel, troca o servidor e abre o Discord. Minimizar esconde a janela na bandeja, perto do relógio, e o menu do ícone faz as mesmas coisas. O tema claro, escuro ou o do Windows se escolhe no canto de cima.
+
+O X pergunta o que você quer: deixar o programa na bandeja, com o túnel ligado e o Go Live funcionando, ou desligar o túnel e fechar. Marcando **Não perguntar de novo**, a escolha vira o padrão, e dá para trocá-la nas preferências.
 
 ## Antes de confiar no arquivo
 
@@ -132,10 +138,28 @@ Nos três. O túnel pega o tráfego de qualquer um deles, e também o do Discord
 </details>
 
 <details>
+<summary><strong>É seguro digitar a senha do Proton no programa?</strong></summary>
+<br>
+
+A senha não sai do computador nem é gravada. O login usa o SRP do Proton, o mesmo do app oficial: o programa só prova ao Proton que conhece a senha, sem enviá-la. Com a sessão aberta, ele gera um par de chaves, pede ao Proton um certificado para a chave pública, monta a configuração e encerra a sessão na hora. O que fica é só a configuração, igual à que o site entregaria, guardada na pasta protegida do serviço.
+
+Uma ressalva honesta: o Proton não tem uma API pública para programas de terceiros. O programa fala com a mesma API do app oficial para Linux e se apresenta como ele, como fazem outras ferramentas da comunidade. Se um dia o Proton mudar isso, o login para de funcionar até sair uma versão nova, e o caminho do arquivo `.conf` baixado no site continua valendo.
+</details>
+
+<details>
+<summary><strong>O Proton pediu uma verificação</strong></summary>
+<br>
+
+De vez em quando o Proton pede um CAPTCHA no login. Ele abre numa janelinha separada, com a página oficial do Proton. Resolvido, a janelinha fecha sozinha e o login continua de onde parou.
+</details>
+
+<details>
 <summary><strong>Quero trocar de servidor ou de VPN</strong></summary>
 <br>
 
-Baixe o arquivo novo e arraste para a janela, ou clique em **Escolher**. A janela pergunta se pode trocar, e o túnel passa a usar o novo servidor na hora.
+Clique em **Gerar outro pela conta do Proton** e escolha o país, ou baixe um arquivo novo e arraste para a janela. A janela pergunta se pode trocar, e o túnel passa a usar o novo servidor na hora.
+
+A configuração gerada pela conta tem validade: o programa pede um ano ao Proton, e a data que ele concedeu aparece na janela quando ela é criada. Depois disso, é só gerar outra.
 </details>
 
 <details>
@@ -229,6 +253,8 @@ As rotas só entram depois que o servidor da VPN responde ao primeiro handshake,
 
 A janela e o serviço conversam por um named pipe que só aceita o sistema, os administradores e o usuário que instalou. Antes de mandar a chave da VPN, a janela confere que o dono do pipe é o sistema, para nenhum outro programa poder se passar pelo serviço. Para mostrar o país, a janela pergunta ao gateway do Discord, em `gateway.discord.gg/cdn-cgi/trace`, com que IP e de que país você chega. É o IP do gateway que decide o que a conta pode fazer, e o pedido faz o mesmo caminho que o app.
 
+O login do Proton roda na janela, sem administrador. Ele faz o SRP com a [biblioteca do próprio Proton](https://github.com/ProtonMail/go-srp), escolhe na lista do Proton o servidor gratuito de menor pontuação fora do Brasil, gera um par de chaves Ed25519, pede um certificado para a chave pública e deriva dela a chave X25519 que o WireGuard usa, a mesma conta que a biblioteca de VPN do Proton faz. A configuração vai para o serviço pelo mesmo pipe de um arquivo importado e não passa pelo disco do usuário. O CAPTCHA do Proton se recusa a ser mostrado dentro de outra página, mas foi feito para rodar num WebView2, então abre numa janela própria, num processo separado: se algo der errado ali, só a janelinha fecha.
+
 ## Compilar do código-fonte
 
 Precisa do [Go](https://go.dev/dl/). No PowerShell, na pasta do projeto:
@@ -256,6 +282,9 @@ Precisa do [Go](https://go.dev/dl/). No PowerShell, na pasta do projeto:
 | `discord.go` | detecção da instalação e abertura do Discord |
 | `elevate_windows.go` | pedido de administrador e lista de processos |
 | `update.go` | consulta da última release no GitHub |
+| `proton.go` | login no Proton, lista de servidores, certificado e montagem da configuração |
+| `gui_proton_windows.go` | o login do Proton visto pela janela |
+| `captcha_windows.go` | janelinha do CAPTCHA, com um WebView2 só dela |
 
 Os testes rodam sem rede e sem administrador:
 
@@ -269,4 +298,6 @@ Dois testes mexem em coisa de verdade e só rodam quando pedido: `DGLB_REDE=1` c
 
 A ideia de passar o Discord inteiro por um túnel WireGuard, em vez de só o gateway por um proxy, veio do **[GoLiveBypass](https://github.com/bezumiya/GoLiveBypass)**, que resolve o mesmo problema com interface gráfica e plugin para Vencord. Este projeto faz por fora, sem tocar na instalação do Discord. Por isso a licença aqui é a mesma dele, GPL-3.0.
 
-O túnel usa o driver WireGuardNT e as bibliotecas `wireguard-windows` e `wireguard-go`, da WireGuard LLC, e a janela usa o Wails, cada um sob a sua licença. A do driver vai junto no `.zip`, em `LICENCA-WireGuardNT.txt`. WireGuard é marca registrada de Jason A. Donenfeld, e este projeto não tem relação com ele.
+O caminho do login no Proton, com os endereços da API, os códigos de erro e o formato do certificado, segue o **[protonvpn-wg-confgen](https://github.com/hatemosphere/protonvpn-wg-confgen)**, também GPL-3.0.
+
+O túnel usa o driver WireGuardNT e as bibliotecas `wireguard-windows` e `wireguard-go`, da WireGuard LLC, a janela usa o Wails e o login usa o `go-srp` do Proton, cada um sob a sua licença. A do driver vai junto no `.zip`, em `LICENCA-WireGuardNT.txt`. WireGuard é marca registrada de Jason A. Donenfeld, e este projeto não tem relação com ele.
