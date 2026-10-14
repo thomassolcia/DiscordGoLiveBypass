@@ -9,7 +9,22 @@
 <body>
   <header class="barra">
     <div class="marca">
-      <span class="logo" aria-hidden="true"></span>
+      <svg class="logo" viewBox="0 0 256 256" aria-hidden="true">
+        <defs>
+          <linearGradient id="logo-fundo" x1="0" y1="0" x2="0" y2="256" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#27292F"/>
+            <stop offset="1" stop-color="#131417"/>
+          </linearGradient>
+          <linearGradient id="logo-balao" x1="40" y1="40" x2="216" y2="216" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#8089FF"/>
+            <stop offset="1" stop-color="#4C58E8"/>
+          </linearGradient>
+        </defs>
+        <rect width="256" height="256" rx="60" fill="url(#logo-fundo)"/>
+        <path d="M80 36h96a52 52 0 0 1 52 52v50a52 52 0 0 1-52 52h-52l-44 34c-8 6-18-1-15-10l6-25A52 52 0 0 1 28 138V88a52 52 0 0 1 52-52z" fill="url(#logo-balao)"/>
+        <circle cx="128" cy="113" r="19" fill="#FFFFFF"/>
+        <path d="M95.5 80.5a46 46 0 0 0 0 65M160.5 80.5a46 46 0 0 1 0 65" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round"/>
+      </svg>
       <span class="nome">DiscordGoLiveBypass</span>
       <span class="versao" id="versao"></span>
     </div>
