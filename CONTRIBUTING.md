@@ -76,3 +76,5 @@ Um commit por mudança lógica. Corpo de commit só quando a motivação não ap
 ## A janela
 
 A página fica em `frontend/`, em HTML, CSS e JavaScript sem framework e sem etapa de build, para o projeto continuar compilando com um comando só. Cada método exportado do `App`, em `gui_windows.go`, aparece na página como `window.go.main.App.<Método>`. As cores vêm das variáveis no começo do `style.css`, uma paleta para cada tema: cor nova entra nas duas.
+
+O ícone sai dos SVGs em `winres/`: o `logo.svg` para os tamanhos grandes, o `logo-pequeno.svg` para 32 e 24 px e o `logo-solto.svg`, sem o fundo escuro, para a bandeja. Depois de mexer num deles, rode `winres\Gerar-icones.ps1` e faça commit dos PNGs junto. O topo da janela usa o mesmo desenho do `logo-pequeno.svg`, direto no `index.html`.

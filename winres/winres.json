@@ -1,7 +1,16 @@
 {
   "RT_GROUP_ICON": {
     "#3": {
-      "0000": "icon.png"
+      "0000": [
+        "icone-256.png",
+        "icone-64.png",
+        "icone-48.png",
+        "icone-40.png",
+        "icone-32.png",
+        "icone-24.png",
+        "icone-20.png",
+        "icone-16.png"
+      ]
     }
   },
   "RT_RCDATA": {

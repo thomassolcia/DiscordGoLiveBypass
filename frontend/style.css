@@ -89,23 +89,8 @@ svg.traco { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: r
   padding: 1px 8px;
 }
 
-.logo {
-  position: relative;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  background: linear-gradient(140deg, #6f7bff, var(--destaque) 55%, var(--destaque-forte));
-  box-shadow: 0 4px 12px rgba(88, 101, 242, 0.35);
-}
-.logo::after {
-  content: "";
-  position: absolute;
-  left: 10px;
-  top: 7px;
-  border-left: 9px solid #fff;
-  border-top: 6px solid transparent;
-  border-bottom: 6px solid transparent;
-}
+/* O mesmo desenho do ícone de 24 e 32 px, que é o que fica nítido neste tamanho. */
+svg.logo { width: 28px; height: 28px; }
 
 .temas {
   display: flex;

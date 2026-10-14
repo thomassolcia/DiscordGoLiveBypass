@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="winres/icone-256.png" alt="" width="96">
+
 # DiscordGoLiveBypass
 
 **Leva só o Discord por uma VPN fora do Brasil e devolve o Go Live, a câmera e a transmissão de tela.**
