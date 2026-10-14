@@ -1,4 +1,9 @@
 {
+  "RT_GROUP_ICON": {
+    "#3": {
+      "0000": "icon.png"
+    }
+  },
   "RT_RCDATA": {
     "WIREGUARD.DLL": {
       "0000": "wireguard.dll"
@@ -11,12 +16,13 @@
           "name": "DiscordGoLiveBypass",
           "version": "0.0.0.0"
         },
-        "description": "Abre o Discord com so ele passando por uma VPN WireGuard",
-        "minimum-os": "win7",
+        "description": "Leva so o Discord por uma VPN WireGuard, para o Go Live voltar",
+        "minimum-os": "win10",
         "execution-level": "as invoker",
         "ui-access": false,
         "auto-elevate": false,
-        "dpi-awareness": "system",
+        "dpi-awareness": "per monitor v2",
+        "use-common-controls-v6": true,
         "long-path-aware": true
       }
     }
@@ -31,7 +37,7 @@
         "info": {
           "0409": {
             "ProductName": "DiscordGoLiveBypass",
-            "FileDescription": "Abre o Discord com so ele passando por uma VPN WireGuard",
+            "FileDescription": "Leva so o Discord por uma VPN WireGuard, para o Go Live voltar",
             "CompanyName": "Thomas Solcia",
             "LegalCopyright": "Licenca GPL-3.0, codigo em github.com/thomassolcia/DiscordGoLiveBypass",
             "OriginalFilename": "DiscordGoLiveBypass.exe",

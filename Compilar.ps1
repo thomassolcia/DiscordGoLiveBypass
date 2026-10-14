@@ -49,7 +49,9 @@ if ($LASTEXITCODE -ne 0) { throw 'O go-winres falhou.' }
 
 # Sem -s -w de proposito: binario pequeno e sem simbolos parece empacotado, que e
 # justamente o padrao que a heuristica dos antivirus procura. Custa uns 4 MB.
-go build -trimpath -tags load_wgnt_from_rsrc -ldflags "-X main.version=$Versao" -o DiscordGoLiveBypass.exe .
+# As tags desktop e production sao as que o Wails pede para gerar a janela sem o CLI dele,
+# e o -H windowsgui faz o Windows abrir o programa sem um console atras.
+go build -trimpath -tags "desktop,production,load_wgnt_from_rsrc" -ldflags "-H windowsgui -X main.version=$Versao" -o DiscordGoLiveBypass.exe .
 if ($LASTEXITCODE -ne 0) { throw 'O go build falhou.' }
 
 Write-Host "Pronto: DiscordGoLiveBypass.exe ($Versao), com o driver do WireGuard embutido."
