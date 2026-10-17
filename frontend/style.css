@@ -458,7 +458,7 @@ button.perigo:hover:not(:disabled) { background: none; text-decoration: underlin
 .faixa.atencao { background: rgba(240, 178, 50, 0.1); border-color: rgba(240, 178, 50, 0.4); }
 .faixa.info { background: var(--destaque-suave); border-color: rgba(88, 101, 242, 0.35); }
 .faixa > span { flex: 1; min-width: 200px; }
-.estado .atencao-texto, .modo .atencao-texto { color: var(--amarelo); }
+.estado .atencao-texto { color: var(--amarelo); }
 
 /* Rodapé */
 footer {

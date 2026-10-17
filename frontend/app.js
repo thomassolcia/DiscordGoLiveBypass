@@ -381,11 +381,13 @@ function cartaoEstado(st) {
         titulo = 'Go Live liberado';
         detalhe = reiniciar
           ? `<span class="atencao-texto">O ${esc(nomeAberto)} já estava aberto. Reinicie para ele entrar no túnel.</span>`
-          : st.mode === 'completo'
-            ? 'O Discord inteiro está passando pelo túnel.'
-            : st.streams > 0
-              ? 'Sua transmissão está passando pelo túnel. Voz e mensagens seguem pela sua conexão.'
-              : 'Só o Go Live passa pelo túnel. Voz e mensagens seguem pela sua conexão.';
+          : s.modoTrocado
+            ? '<span class="atencao-texto">Modo trocado. Saia e entre de novo na chamada.</span>'
+            : st.mode === 'completo'
+              ? 'O Discord inteiro está passando pelo túnel.'
+              : st.streams > 0
+                ? 'A transmissão está passando pelo túnel.'
+                : 'Só o Go Live passa pelo túnel.';
         classe = 'ok';
         simbolo = icone('check');
       }
@@ -447,9 +449,8 @@ function cartaoEstado(st) {
 function escolhaModo(st) {
   if (!st.mode) return '';
   const explicacao = st.mode === 'completo'
-    ? 'A câmera funciona, mas a voz vai até o servidor da VPN e volta, com mais atraso.'
-    : 'Voz, mensagens e anexos seguem pela sua conexão. A câmera não abre para quem assiste.';
-  const aviso = s.modoTrocado ? '<span class="atencao-texto">Saia e entre de novo na chamada para valer.</span> ' : '';
+    ? 'A câmera funciona, mas a voz passa pela VPN, com mais atraso.'
+    : 'Voz e mensagens seguem direto. A câmera não abre para quem assiste.';
   return `<label class="linha-pref">
       <span>Pela VPN</span>
       <select data-chave="modo" data-modo ${s.ocupado ? 'disabled' : ''}>
@@ -457,7 +458,7 @@ function escolhaModo(st) {
         <option value="completo" ${st.mode === 'completo' ? 'selected' : ''}>O Discord inteiro</option>
       </select>
     </label>
-    <p class="pequeno modo" data-chave="modo-texto">${aviso}${explicacao}</p>`;
+    <p class="pequeno modo" data-chave="modo-texto">${explicacao}</p>`;
 }
 
 // Duas linhas de dois cartões. A grade iguala a altura dos cartões de cada linha, e o que
@@ -492,7 +493,7 @@ function painel() {
             <option value="parar" ${s.prefs.ao_fechar === 'parar' ? 'selected' : ''}>Desligar o túnel e fechar</option>
           </select>
         </label>
-        <p class="pequeno fim">Minimizar esconde a janela na bandeja, perto do relógio. O túnel não depende dela e volta sozinho quando o Windows inicia.</p>
+        <p class="pequeno fim">Minimizar leva a janela para a bandeja. O túnel não depende dela.</p>
       </section>
       <section class="cartao">
         <h2>Detalhes técnicos</h2>

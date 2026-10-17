@@ -713,7 +713,7 @@ func runGUI() error {
 	return wails.Run(&options.App{
 		Title:            "DiscordGoLiveBypass",
 		Width:            940,
-		Height:           700,
+		Height:           720,
 		MinWidth:         800,
 		MinHeight:        600,
 		BackgroundColour: backgroundFor(prefs.Theme),
