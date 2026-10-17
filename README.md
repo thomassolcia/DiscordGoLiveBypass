@@ -213,6 +213,8 @@ O Windows recusou o driver ou o adaptador. Antivírus com proteção de rede cos
 <br>
 
 Confira três coisas. Plugin de bypass ativo no Vencord ou BetterDiscord mexe na conexão depois que o Discord abre e pode desfazer o túnel: desative e tente de novo. Quem assiste também precisa estar com o Go Live liberado, por este programa ou por uma VPN. E o `Validar-rota.ps1`, que vem no `.zip`, mostra se a voz e o vídeo estão mesmo saindo pelo adaptador `DiscordGoLiveBypass`.
+
+Se a transmissão abre, mas quem assiste fica carregando, olhe a linha `Ultimo servidor de voz e video do Discord` no resultado do script. Se ela aparece em vermelho, o Discord mudou os servidores de mídia de lugar de novo e o túnel ainda não conhece a faixa nova: abra uma issue com esse resultado.
 </details>
 
 <details>
@@ -249,7 +251,7 @@ Programa novo, sem assinatura digital, que instala um serviço e cria adaptador 
 
 Um executável só faz três papéis. Aberto normalmente, é a janela, feita com o [Wails](https://wails.io): HTML e JavaScript simples, desenhados pelo navegador embutido do Windows (WebView2), e o resto em Go. Com `-service`, é o serviço do Windows que mantém o túnel. E com `-install` ou `-uninstall`, é o passo que a janela roda com administrador para instalar ou remover esse serviço.
 
-O serviço roda como sistema a partir de Arquivos de Programas, onde só administrador escreve. Ele cria um adaptador com o driver WireGuardNT e põe nele só as faixas do Discord, conferidas no registro do RIPE e no DNS: `66.22.192.0/18` e `195.62.89.0/24`, onde ficam os servidores de voz e vídeo, um bloco por região, e `162.159.128.0/20`, o trecho da Cloudflare com gateway, API e CDN, mais os equivalentes em IPv6. Rota mais específica vence a rota padrão, então só esse tráfego entra no túnel, e o Windows escolhe isso sozinho para qualquer programa, inclusive o motor de mídia nativo do Discord.
+O serviço roda como sistema a partir de Arquivos de Programas, onde só administrador escreve. Ele cria um adaptador com o driver WireGuardNT e põe nele só as faixas do Discord: `104.29.128.0/18`, o trecho da Cloudflare onde ficam hoje os servidores de voz e vídeo, `162.159.128.0/20`, outro trecho da Cloudflare, com gateway, API e CDN, e `66.22.192.0/18` e `195.62.89.0/24`, os blocos próprios do Discord, onde a voz ficava até setembro de 2026, mais os equivalentes em IPv6. Os blocos próprios aparecem no registro do RIPE com o nome do Discord; o trecho da voz não aparece em registro nenhum, e quem mostra é o log do próprio cliente, com o IP de cada servidor de mídia a que ele conecta. Rota mais específica vence a rota padrão, então só esse tráfego entra no túnel, e o Windows escolhe isso sozinho para qualquer programa, inclusive o motor de mídia nativo do Discord.
 
 As rotas só entram depois que o servidor da VPN responde ao primeiro handshake, e saem se ele passar três minutos sem responder. Um servidor fora do ar nunca deixa o Discord sem conexão: no máximo sem Go Live, até ele voltar.
 
