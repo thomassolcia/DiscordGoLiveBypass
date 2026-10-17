@@ -12,10 +12,14 @@ function Linha($rotulo, $valor, $cor = 'Gray') {
     Write-Host ("  {0,-24} {1}" -f $rotulo, $valor) -ForegroundColor $cor
 }
 
-function Trace($url) {
+# O IP de saida pela VPN e do servidor dela e ajuda a diagnosticar. O da conexao normal e o
+# da pessoa, e este resultado costuma ir colado numa issue publica. Saida no Brasil quase
+# sempre e a conexao normal, inclusive no gateway com o tunel desligado.
+function Trace($url, [switch]$SemIp) {
     try {
         $corpo = (Invoke-WebRequest -UseBasicParsing -TimeoutSec 10 -Uri $url).Content
         $loc = if ($corpo -match '(?m)^loc=(\w+)') { $matches[1] } else { '?' }
+        if ($SemIp -or $loc -eq 'BR') { return $loc }
         $ip = if ($corpo -match '(?m)^ip=(\S+)') { $matches[1] } else { '?' }
         return "$loc ($ip)"
     } catch {
@@ -136,7 +140,7 @@ if ($ultimoLog) {
 Write-Host ''
 Write-Host '  Pais que cada servico enxerga:'
 Linha 'gateway do Discord' (Trace 'https://gateway.discord.gg/cdn-cgi/trace')
-Linha 'resto do PC' (Trace 'https://www.cloudflare.com/cdn-cgi/trace')
+Linha 'resto do PC' (Trace 'https://www.cloudflare.com/cdn-cgi/trace' -SemIp)
 
 $log = Join-Path $env:APPDATA "$nome\janela.log"
 if (Test-Path -LiteralPath $log) {
