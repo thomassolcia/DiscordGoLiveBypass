@@ -573,6 +573,11 @@ func (a *App) Desligar() (AppState, error) {
 	return a.Estado(), err
 }
 
+func (a *App) TrocarModo(modo string) (AppState, error) {
+	_, err := callService(ipcRequest{Cmd: cmdSetMode, Mode: modo}, 10*time.Second)
+	return a.Estado(), err
+}
+
 func (a *App) TrocarArquivo(path string) (AppState, error) {
 	err := a.sendConf(path)
 	return a.Estado(), err
