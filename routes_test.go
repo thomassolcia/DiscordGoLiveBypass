@@ -272,3 +272,22 @@ func TestModoCompletoEOMesmoDaVersaoAnterior(t *testing.T) {
 		t.Errorf("modo completo com %d rotas, queria so a lista fixa (%d)", len(rotas), len(discordPrefixes))
 	}
 }
+
+func TestDiffRoutesSoMexeNoQueMudou(t *testing.T) {
+	p := netip.MustParsePrefix
+	aplicadas := map[netip.Prefix]bool{p("162.159.128.0/20"): true, p("104.29.128.0/18"): true, p("104.29.152.78/32"): true}
+	pedidas := map[netip.Prefix]bool{p("162.159.128.0/20"): true, p("104.29.152.78/32"): true, p("104.29.143.243/32"): true}
+
+	por, tirar := diffRoutes(aplicadas, pedidas)
+	if len(por) != 1 || por[0] != p("104.29.143.243/32") {
+		t.Errorf("por = %v, queria so 104.29.143.243/32", por)
+	}
+	if len(tirar) != 1 || tirar[0] != p("104.29.128.0/18") {
+		t.Errorf("tirar = %v, queria so 104.29.128.0/18", tirar)
+	}
+
+	por, tirar = diffRoutes(aplicadas, map[netip.Prefix]bool{})
+	if len(por) != 0 || len(tirar) != 3 {
+		t.Errorf("desligando: por = %v, tirar = %v", por, tirar)
+	}
+}

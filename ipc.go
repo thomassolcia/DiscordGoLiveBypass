@@ -17,11 +17,13 @@ const (
 	cmdSetConf = "set_conf"
 	cmdEnable  = "enable"
 	cmdDisable = "disable"
+	cmdSetMode = "set_mode"
 )
 
 type ipcRequest struct {
 	Cmd  string `json:"cmd"`
 	Conf string `json:"conf,omitempty"`
+	Mode string `json:"mode,omitempty"`
 }
 
 // ServiceStatus é tudo o que a janela sabe do túnel. Nunca carrega a chave da VPN.
@@ -33,7 +35,9 @@ type ServiceStatus struct {
 	Error     string `json:"error,omitempty"`
 	Server    string `json:"server,omitempty"`
 	Endpoint  string `json:"endpoint,omitempty"`
+	Mode      string `json:"mode,omitempty"`
 	Routes    int    `json:"routes"`
+	Streams   int    `json:"streams"`
 	Handshake int64  `json:"handshake_s"`
 	Rx        uint64 `json:"rx"`
 	Tx        uint64 `json:"tx"`

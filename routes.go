@@ -220,6 +220,23 @@ func halves(prefix netip.Prefix) (netip.Prefix, netip.Prefix) {
 	return netip.PrefixFrom(prefix.Addr(), bits+1), netip.PrefixFrom(high, bits+1)
 }
 
+// diffRoutes diz o que falta pôr e o que sobra tirar para a tabela aplicada virar a pedida,
+// em ordem, para o log sair igual de uma vez para outra.
+func diffRoutes(applied, want map[netip.Prefix]bool) (add, del []netip.Prefix) {
+	missing, extra := map[netip.Prefix]bool{}, map[netip.Prefix]bool{}
+	for prefix := range want {
+		if !applied[prefix] {
+			missing[prefix] = true
+		}
+	}
+	for prefix := range applied {
+		if !want[prefix] {
+			extra[prefix] = true
+		}
+	}
+	return sortedPrefixes(missing), sortedPrefixes(extra)
+}
+
 func contains[T comparable](list []T, item T) bool {
 	for _, x := range list {
 		if x == item {
