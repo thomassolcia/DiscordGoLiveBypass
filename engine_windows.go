@@ -128,7 +128,7 @@ func (e *Engine) session(ctx context.Context, text string) error {
 		return fmt.Errorf("não consegui resolver o endereço do servidor da VPN: %v", err)
 	}
 
-	routes := TunnelRoutes(ResolveDiscordHosts(5 * time.Second))
+	routes := TunnelRoutes(ResolveDiscordHosts(5 * time.Second).all())
 	if err := checkEndpoints(cfg, routes); err != nil {
 		return err
 	}
