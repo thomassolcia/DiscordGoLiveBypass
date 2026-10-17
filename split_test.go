@@ -55,7 +55,7 @@ func TestParseRTCLineReconheceAsLinhasDoDiscord(t *testing.T) {
 func TestParseRTCLineIgnoraORestoDoLog(t *testing.T) {
 	for _, linha := range []string{
 		linhaDesconectado,
-		`[2026-10-13 23:36:43.210] [info]  [Connection(stream)] Connected with local address 189.39.0.1:56608 and protocol: udp`,
+		`[2026-10-13 23:36:43.210] [info]  [Connection(stream)] Connected with local address 203.0.113.7:56608 and protocol: udp`,
 		`[2026-10-17 00:46:02.294] [info]  [RTCConnection(713158092061278278, default)] Remote media sink wants: {"1787":0,"any":0}`,
 		`[2026-10-13 23:36:41.967] [info]  [RTCConnection(1559756752117833818, stream)] RTC connection state: AWAITING_ENDPOINT => CONNECTING`,
 		`[2026-10-13 23:36:43.213] [info]  [Connection(stream)] Connection state change: CONNECTING => CONNECTED`,
