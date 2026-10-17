@@ -23,6 +23,24 @@ func TestDiscordPrefixesCobremOQueODiscordUsa(t *testing.T) {
 	}
 }
 
+// Servidores de mídia que o Discord usou de verdade em outubro de 2026, tirados do log do
+// cliente (as linhas "Creating connection to") e da lista em latency.discord.media/rtc. Foi
+// por eles ficarem fora do túnel que a transmissão abria e quem assistia ficava carregando:
+// a voz passava, mas o vídeo saía pelo IP brasileiro.
+func TestDiscordPrefixesCobremAVozNaCloudflare(t *testing.T) {
+	for name, raw := range map[string]string{
+		"Go Live em São Paulo, c-gru20": "104.29.143.243",
+		"voz em São Paulo, c-gru08":     "104.29.136.227",
+		"voz em Chicago, c-ord12":       "104.29.158.178",
+		"voz em Virgínia, c-iad09":      "104.29.159.170",
+		"latência us-south":             "104.29.129.247",
+	} {
+		if !covered(discordPrefixes, netip.MustParseAddr(raw)) {
+			t.Errorf("%s (%s) ficou fora do tunel", name, raw)
+		}
+	}
+}
+
 // O resto do computador não pode entrar no túnel: nem outro site da Cloudflare, nem o
 // servidor de jogo que divide o provedor com o Discord.
 func TestDiscordPrefixesNaoPegamOResto(t *testing.T) {
@@ -30,6 +48,8 @@ func TestDiscordPrefixesNaoPegamOResto(t *testing.T) {
 		"1.1.1.1":                   "1.1.1.1",
 		"cloudflare fora do trecho": "162.159.192.1",
 		"outro site cloudflare":     "104.16.132.229",
+		"warp da cloudflare":        "104.28.14.1",
+		"cloudflare depois da voz":  "104.29.192.1",
 		"servidor de jogo i3D":      "213.179.200.1",
 		"google":                    "142.250.79.46",
 	} {
@@ -40,6 +60,7 @@ func TestDiscordPrefixesNaoPegamOResto(t *testing.T) {
 }
 
 func TestTunnelRoutesAcrescentaSoONovo(t *testing.T) {
+	fixas := len(discordPrefixes)
 	resolved := []netip.Addr{
 		netip.MustParseAddr("162.159.135.232"), // já coberto
 		netip.MustParseAddr("104.18.52.172"),   // fora da lista fixa
@@ -57,7 +78,7 @@ func TestTunnelRoutesAcrescentaSoONovo(t *testing.T) {
 	}
 
 	// A lista fixa não pode ser alterada por quem chamou.
-	if len(discordPrefixes) != 5 {
+	if len(discordPrefixes) != fixas {
 		t.Errorf("TunnelRoutes mexeu na lista fixa: %v", discordPrefixes)
 	}
 }
