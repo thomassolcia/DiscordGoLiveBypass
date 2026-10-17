@@ -57,8 +57,9 @@ Write-Host ''
 Write-Host '  Por onde cada destino sai neste momento:'
 $amostras = [ordered]@{
     'API e gateway'          = '162.159.128.233'
-    'voz e video no Brasil'  = '66.22.200.10'
-    'voz e video na Europa'  = '66.22.243.10'
+    'voz e video, Sao Paulo' = '104.29.143.243'
+    'voz e video, EUA'       = '104.29.158.178'
+    'voz, bloco proprio'     = '66.22.200.10'
     'controle: 1.1.1.1'      = '1.1.1.1'
 }
 foreach ($rotulo in $amostras.Keys) {
@@ -67,6 +68,23 @@ foreach ($rotulo in $amostras.Keys) {
     $noTunel = $interface -eq $nome
     $esperado = if ($rotulo -like 'controle*') { -not $noTunel } else { $noTunel }
     Linha $rotulo $interface $(if ($esperado) { 'Green' } else { 'Red' })
+}
+
+# As amostras acima so provam que a lista de faixas cobre o que ja se conhecia. O log do
+# proprio Discord diz a que servidor de midia ele conectou de verdade, e foi por ele que
+# apareceu a mudanca da voz para a Cloudflare, quando todas as amostras estavam verdes.
+$midia = Get-ChildItem -Path (Join-Path $env:APPDATA 'discord*\logs\renderer_js.log') -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    ForEach-Object { Select-String -LiteralPath $_.FullName -Pattern 'Creating connection to (\d+\.\d+\.\d+\.\d+):\d+' | Select-Object -Last 1 } |
+    Select-Object -First 1
+if ($midia) {
+    $ip = $midia.Matches[0].Groups[1].Value
+    $quando = if ($midia.Line -match '^\[([\d-]+ [\d:]+)') { $matches[1] } else { '?' }
+    $rota = Find-NetRoute -RemoteIPAddress $ip -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceAlias } | Select-Object -First 1
+    $interface = if ($rota) { $rota.InterfaceAlias } else { 'sem rota' }
+    Write-Host ''
+    Write-Host "  Ultimo servidor de voz e video do Discord ($quando):"
+    Linha $ip $interface $(if ($interface -eq $nome) { 'Green' } else { 'Red' })
 }
 
 Write-Host ''
