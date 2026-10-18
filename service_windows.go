@@ -58,6 +58,7 @@ func startMenuShortcut() string {
 type serviceSettings struct {
 	Enabled  bool   `json:"enabled"`
 	OwnerSID string `json:"owner_sid,omitempty"`
+	Mode     string `json:"mode,omitempty"`
 }
 
 func loadSettings(dir string) serviceSettings {
@@ -121,6 +122,11 @@ func (s *tunnelService) readConf() (string, bool) {
 	return string(raw), true
 }
 
+// O dono é quem instalou, e é no AppData dele que o Discord escreve o log.
+func (s *tunnelService) start(text string) {
+	s.engine.Start(text, effectiveMode(s.settings.Mode), discordLogPaths(s.settings.OwnerSID))
+}
+
 func (s *tunnelService) status() ServiceStatus {
 	engine := s.engine.Status()
 	status := ServiceStatus{
@@ -129,7 +135,9 @@ func (s *tunnelService) status() ServiceStatus {
 		State:     engine.State,
 		Error:     engine.Error,
 		Endpoint:  engine.Endpoint,
+		Mode:      effectiveMode(s.settings.Mode),
 		Routes:    engine.Routes,
+		Streams:   engine.Streams,
 		Handshake: -1,
 		Rx:        engine.Rx,
 		Tx:        engine.Tx,
@@ -169,7 +177,7 @@ func (s *tunnelService) handle(req ipcRequest) ipcResponse {
 		}
 		log.Printf("arquivo da VPN trocado")
 		if s.settings.Enabled {
-			s.engine.Start(req.Conf)
+			s.start(req.Conf)
 		}
 	case cmdEnable:
 		text, ok := s.readConf()
@@ -180,7 +188,17 @@ func (s *tunnelService) handle(req ipcRequest) ipcResponse {
 		if err := saveSettings(s.dir, s.settings); err != nil {
 			log.Printf("guardando a preferência: %v", err)
 		}
-		s.engine.Start(text)
+		s.start(text)
+	case cmdSetMode:
+		if !validMode(req.Mode) {
+			return fail(fmt.Errorf("modo desconhecido: %q", req.Mode))
+		}
+		s.settings.Mode = req.Mode
+		if err := saveSettings(s.dir, s.settings); err != nil {
+			return fail(fmt.Errorf("não consegui guardar o modo: %v", err))
+		}
+		log.Printf("modo trocado para %s", req.Mode)
+		s.engine.SetMode(req.Mode)
 	case cmdDisable:
 		s.settings.Enabled = false
 		if err := saveSettings(s.dir, s.settings); err != nil {
@@ -205,7 +223,7 @@ func (s *tunnelService) Execute(args []string, requests <-chan svc.ChangeRequest
 
 	if s.settings.Enabled {
 		if text, ok := s.readConf(); ok {
-			s.engine.Start(text)
+			s.start(text)
 		}
 	}
 	changes <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}

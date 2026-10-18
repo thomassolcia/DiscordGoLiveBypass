@@ -22,6 +22,7 @@ const s = {
   troca: false,
   pedidoFechar: null,
   lembrarFechar: false,
+  modoTrocado: false,
   proton: novoProton(),
 };
 
@@ -325,9 +326,9 @@ function telaInicial() {
       <section class="apresentacao">
         <span class="rotulo">Go Live no Brasil</span>
         <h1>Seu Go Live de volta no Discord</h1>
-        <p>Um túnel WireGuard leva só o Discord para fora do Brasil. O jogo que você transmite, o navegador e o resto do computador continuam na sua conexão.</p>
+        <p>Um túnel WireGuard leva só o Go Live do Discord para fora do Brasil. A voz da chamada, o jogo, o navegador e o resto do computador continuam na sua conexão.</p>
         <ul class="vantagens">
-          <li><span class="icone">${icone('escudo')}</span><div><b>Só o Discord passa pela VPN</b><span>Nada de ping alto no jogo nem site estranhando seu IP.</span></div></li>
+          <li><span class="icone">${icone('escudo')}</span><div><b>Só a transmissão passa pela VPN</b><span>Voz sem atraso e nada de ping alto no jogo.</span></div></li>
           <li><span class="icone">${icone('raio')}</span><div><b>Liga sozinho com o Windows</b><span>Depois de ativar, é só abrir o Discord pelo atalho de sempre.</span></div></li>
           <li><span class="icone">${icone('janela')}</span><div><b>Sem janela preta</b><span>A permissão de administrador é pedida uma vez só.</span></div></li>
         </ul>
@@ -380,7 +381,13 @@ function cartaoEstado(st) {
         titulo = 'Go Live liberado';
         detalhe = reiniciar
           ? `<span class="atencao-texto">O ${esc(nomeAberto)} já estava aberto. Reinicie para ele entrar no túnel.</span>`
-          : 'Só o Discord está passando pelo túnel.';
+          : s.modoTrocado
+            ? '<span class="atencao-texto">Modo trocado. Saia e entre de novo na chamada.</span>'
+            : st.mode === 'completo'
+              ? 'O Discord inteiro está passando pelo túnel.'
+              : st.streams > 0
+                ? 'A transmissão está passando pelo túnel.'
+                : 'Só o Go Live passa pelo túnel.';
         classe = 'ok';
         simbolo = icone('check');
       }
@@ -437,6 +444,23 @@ function cartaoEstado(st) {
     </section>`;
 }
 
+// O que passa pela VPN. Serviço de antes da 2.2 não diz o modo e não sabe trocar, então a
+// escolha só aparece depois da atualização.
+function escolhaModo(st) {
+  if (!st.mode) return '';
+  const explicacao = st.mode === 'completo'
+    ? 'A câmera funciona, mas a voz passa pela VPN, com mais atraso.'
+    : 'Voz e mensagens seguem direto. A câmera não abre para quem assiste.';
+  return `<label class="linha-pref">
+      <span>Pela VPN</span>
+      <select data-chave="modo" data-modo ${s.ocupado ? 'disabled' : ''}>
+        <option value="transmissao" ${st.mode === 'transmissao' ? 'selected' : ''}>Só o Go Live</option>
+        <option value="completo" ${st.mode === 'completo' ? 'selected' : ''}>O Discord inteiro</option>
+      </select>
+    </label>
+    <p class="pequeno modo" data-chave="modo-texto">${explicacao}</p>`;
+}
+
 // Duas linhas de dois cartões. A grade iguala a altura dos cartões de cada linha, e o que
 // cresce num deles cresce a linha inteira junto.
 function painel() {
@@ -459,6 +483,7 @@ function painel() {
       </section>
       <section class="cartao">
         <h2>Preferências</h2>
+        ${escolhaModo(st)}
         ${marcarAbrirDiscord()}
         <label class="linha-pref">
           <span>Ao clicar no X</span>
@@ -468,13 +493,14 @@ function painel() {
             <option value="parar" ${s.prefs.ao_fechar === 'parar' ? 'selected' : ''}>Desligar o túnel e fechar</option>
           </select>
         </label>
-        <p class="pequeno fim">Minimizar esconde a janela na bandeja, perto do relógio. O túnel não depende dela e volta sozinho quando o Windows inicia.</p>
+        <p class="pequeno fim">Minimizar leva a janela para a bandeja. O túnel não depende dela.</p>
       </section>
       <section class="cartao">
         <h2>Detalhes técnicos</h2>
         <div class="par"><span>Último handshake</span><b>${esc(handshake)}</b></div>
         <div class="par"><span>Recebido / enviado</span><b>${bytes(st.rx)} / ${bytes(st.tx)}</b></div>
-        <div class="par"><span>Faixas do Discord no túnel</span><b>${st.routes}</b></div>
+        <div class="par"><span>Rotas do Discord no túnel</span><b>${st.routes}</b></div>
+        ${st.mode === 'transmissao' ? `<div class="par" data-chave="transmissoes"><span>Transmissões no túnel</span><b>${st.streams || 0}</b></div>` : ''}
         <div class="par"><span>Versão do serviço</span><b>${esc(st.version)}</b></div>
       </section>
     </div>`;
@@ -763,6 +789,14 @@ document.addEventListener('click', (evento) => {
 document.addEventListener('change', (evento) => {
   if (evento.target.matches('[data-lembrar]')) {
     s.lembrarFechar = evento.target.checked;
+    return;
+  }
+  if (evento.target.matches('[data-modo]')) {
+    const modo = evento.target.value;
+    acao('modo', async () => {
+      await go().TrocarModo(modo);
+      s.modoTrocado = true;
+    });
     return;
   }
   const campo = evento.target.closest('[data-pref]');

@@ -531,6 +531,7 @@ select {
   padding: 7px 10px;
 }
 .linha-pref { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 14px; }
+p.modo { margin: -6px 0 14px; }
 
 /* Abas do arquivo da VPN e formulário do Proton */
 .abas {
