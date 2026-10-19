@@ -4,9 +4,11 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -52,41 +54,23 @@ func TestMudouCodigo(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	commit := func(mensagem string) {
+	commit := func(mensagem string) string {
 		t.Helper()
 		git("add", "-A")
 		git("commit", "-q", "-m", mensagem)
-	}
-	// Dentro do Actions o go test herda o GITHUB_OUTPUT do passo, e o script não pode escrever
-	// nele: cada execução ganha o seu, que o exec.Cmd põe por cima do herdado.
-	rodar := func(base string) string {
-		t.Helper()
-		args := []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script}
-		if base != "" {
-			args = append(args, "-Base", base)
-		}
-		saida := filepath.Join(t.TempDir(), "saida")
-		cmd := exec.Command(shell, args...)
-		cmd.Dir = repo
-		cmd.Env = append(os.Environ(), "GITHUB_OUTPUT="+saida)
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("%s -Base %q: %v\n%s", script, base, err, out)
-		}
-		resposta, err := os.ReadFile(saida)
-		if err != nil {
-			t.Fatalf("o script não gravou a resposta no GITHUB_OUTPUT: %v", err)
-		}
-		return strings.TrimSpace(string(resposta))
+		return git("rev-parse", "HEAD")
 	}
 
 	git("init", "-q")
 	escrever("main.go", "package main\n")
 	escrever("README.md", "# teste\n")
 	escrever("docs/janela.png", "png")
-	commit("inicio")
-	inicio := git("rev-parse", "HEAD")
+	inicio := commit("inicio")
 
-	casos := []struct {
+	type caso struct{ nome, commit, base, quer string }
+	var casos []caso
+
+	mudancas := []struct {
 		nome  string
 		mudar func()
 		quer  string
@@ -110,34 +94,61 @@ func TestMudouCodigo(t *testing.T) {
 		// Com a detecção de renomeação do git, só o docs/main.go apareceria na lista.
 		{"código movido para docs/", func() { git("mv", "main.go", "docs/main.go") }, "codigo=true"},
 	}
-	for _, c := range casos {
+	for _, m := range mudancas {
 		git("checkout", "-q", "--detach", inicio)
-		c.mudar()
-		commit(c.nome)
-		if got := rodar(inicio); got != c.quer {
-			t.Errorf("%s: %s, queria %s", c.nome, got, c.quer)
-		}
+		m.mudar()
+		casos = append(casos, caso{m.nome, commit(m.nome), inicio, m.quer})
 	}
 
 	// workflow_dispatch não tem base, e o push que cria uma branch manda zeros no lugar do
 	// commit anterior. Nos dois casos não dá para saber o que mudou.
-	for _, base := range []string{"", strings.Repeat("0", 40)} {
-		if got := rodar(base); got != "codigo=true" {
-			t.Errorf("base %q: %s, queria codigo=true", base, got)
-		}
-	}
+	casos = append(casos,
+		caso{"sem base", inicio, "", "codigo=true"},
+		caso{"base que o clone não tem", inicio, strings.Repeat("0", 40), "codigo=true"},
+	)
 
 	// No pull_request o ci.yml compara o merge do PR com o primeiro pai. Código que entrou na
 	// main depois que a branch saiu não é do PR e não pode fazer o PR de documentação rodar.
 	git("checkout", "-q", "--detach", inicio)
 	escrever("README.md", "# do pr\n")
-	commit("pr")
-	pr := git("rev-parse", "HEAD")
+	pr := commit("pr")
 	git("checkout", "-q", "--detach", inicio)
 	escrever("main.go", "package main\n\nfunc g() {}\n")
 	commit("main andou")
 	git("merge", "-q", "--no-ff", "--no-edit", pr)
-	if got := rodar("HEAD^1"); got != "codigo=false" {
-		t.Errorf("merge de PR só com documentação: %s, queria codigo=false", got)
+	casos = append(casos, caso{"merge de PR só com documentação", git("rev-parse", "HEAD"), "HEAD^1", "codigo=false"})
+
+	// Todos os casos num shell só, porque cada partida do pwsh custa meio segundo e este teste
+	// roda em toda execução do CI. O script é chamado com & e com o ErrorActionPreference do
+	// passo do Actions, como no ci.yml. O GITHUB_OUTPUT herdado do passo de testes é trocado
+	// antes de cada chamada, para o script não escrever nele.
+	aspas := func(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+	saidas := t.TempDir()
+	var roteiro strings.Builder
+	roteiro.WriteString("$ErrorActionPreference = 'stop'\n")
+	for i, c := range casos {
+		fmt.Fprintf(&roteiro, "$env:GITHUB_OUTPUT = %s\n", aspas(filepath.Join(saidas, strconv.Itoa(i))))
+		fmt.Fprintf(&roteiro, "git checkout -q --detach %s; if ($LASTEXITCODE) { exit 1 }\n", c.commit)
+		fmt.Fprintf(&roteiro, "& %s -Base %s\n", aspas(script), aspas(c.base))
+	}
+	arquivo := filepath.Join(t.TempDir(), "casos.ps1")
+	if err := os.WriteFile(arquivo, []byte(roteiro.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(shell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", arquivo)
+	cmd.Dir = repo
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%s: %v\n%s", script, err, out)
+	}
+
+	for i, c := range casos {
+		resposta, err := os.ReadFile(filepath.Join(saidas, strconv.Itoa(i)))
+		if err != nil {
+			t.Errorf("%s: o script não gravou a resposta no GITHUB_OUTPUT: %v", c.nome, err)
+			continue
+		}
+		if got := strings.TrimSpace(string(resposta)); got != c.quer {
+			t.Errorf("%s: %s, queria %s", c.nome, got, c.quer)
+		}
 	}
 }
