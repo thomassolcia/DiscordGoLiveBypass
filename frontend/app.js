@@ -23,6 +23,7 @@ const s = {
   pedidoFechar: null,
   lembrarFechar: false,
   modoTrocado: false,
+  iniciarComWindows: true,
   proton: novoProton(),
 };
 
@@ -351,6 +352,10 @@ function telaInicial() {
           <hr>
           <h2><span class="passo">2</span> Ativar</h2>
           ${marcarAbrirDiscord()}
+          <label class="marcar">
+            <input type="checkbox" data-iniciar ${s.iniciarComWindows ? 'checked' : ''}>
+            <span>Iniciar com o Windows, com o ícone na bandeja</span>
+          </label>
           <button class="principal grande largo" data-acao="ativar" ${pronto && !s.ocupado ? '' : 'disabled'}
             title="${jaInstalado ? 'O serviço do túnel já está instalado' : 'O Windows pede permissão de administrador uma única vez'}">
             ${ativando ? 'Ativando…' : 'Ativar'}</button>
@@ -674,7 +679,7 @@ const acoes = {
   baixar: () => go().AbrirRelease(),
   ativar: () => acao('ativar', async () => {
     const discordAberto = (s.app?.discord_open?.length || 0) > 0;
-    await go().Ativar(s.escolhido.path);
+    await go().Ativar(s.escolhido.path, s.iniciarComWindows);
     s.escolhido = null;
     await depoisDeLigar(discordAberto);
   }),
@@ -789,6 +794,10 @@ document.addEventListener('click', (evento) => {
 document.addEventListener('change', (evento) => {
   if (evento.target.matches('[data-lembrar]')) {
     s.lembrarFechar = evento.target.checked;
+    return;
+  }
+  if (evento.target.matches('[data-iniciar]')) {
+    s.iniciarComWindows = evento.target.checked;
     return;
   }
   if (evento.target.matches('[data-modo]')) {

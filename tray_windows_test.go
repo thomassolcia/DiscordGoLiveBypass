@@ -36,5 +36,8 @@ func TestBandejaAoVivo(t *testing.T) {
 		t.Error("a janela oculta do ícone não apareceu")
 	}
 	tray.SetTip("DiscordGoLiveBypass: teste trocando o texto")
+	if !tray.Balloon("DiscordGoLiveBypass (teste)", "Aviso de teste saindo do ícone da bandeja.") {
+		t.Error("o Windows recusou o aviso da bandeja")
+	}
 	time.Sleep(time.Second)
 }

@@ -54,6 +54,8 @@ const (
 	nifMessage = 0x1
 	nifIcon    = 0x2
 	nifTip     = 0x4
+	nifInfo    = 0x10
+	niifUser   = 0x4
 
 	mfString       = 0x0
 	mfGrayed       = 0x1
@@ -263,6 +265,21 @@ func (t *tray) SetTip(text string) {
 	if changed {
 		t.notify(nimModify)
 	}
+}
+
+// Balloon mostra uma notificação saindo do ícone, com o próprio ícone do programa. No Windows
+// 10 e 11 ela vira um aviso comum, que também fica na central de notificações.
+func (t *tray) Balloon(title, text string) bool {
+	t.mu.Lock()
+	data := notifyIconData{Wnd: t.wnd, ID: 1, Flags: nifInfo, InfoFlags: niifUser, BalloonIcon: t.icon}
+	t.mu.Unlock()
+	titleUTF16, _ := windows.UTF16FromString(title)
+	textUTF16, _ := windows.UTF16FromString(text)
+	copy(data.InfoTitle[:len(data.InfoTitle)-1], titleUTF16)
+	copy(data.Info[:len(data.Info)-1], textUTF16)
+	data.Size = uint32(unsafe.Sizeof(data))
+	ok, _, _ := procShellNotifyIconW.Call(nimModify, uintptr(unsafe.Pointer(&data)))
+	return ok != 0
 }
 
 func (t *tray) showMenu() {

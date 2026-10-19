@@ -156,7 +156,8 @@ main {
 .coluna { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 
 .passos { flex: 1; display: flex; flex-direction: column; }
-.passos hr { width: 100%; border: 0; border-top: 1px solid var(--borda-forte); margin: 16px 0; }
+.passos hr { width: 100%; border: 0; border-top: 1px solid var(--borda-forte); margin: 14px 0; }
+.passos .marcar { margin: 0 0 10px; }
 
 .cartao {
   background: var(--cartao);
