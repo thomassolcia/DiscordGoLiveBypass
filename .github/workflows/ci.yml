@@ -2,11 +2,16 @@ name: ci
 
 # Confere a cada mudança, e não só na tag: quebrar o build na hora de publicar uma release
 # significa descobrir tarde, com a versão já anunciada.
+#
+# O push fica só na main e o pull_request cobre as branches de trabalho, então cada commit
+# roda uma vez. O ready_for_review entra porque rascunho não roda: marcar o PR como pronto
+# é o que dispara a execução que ficou para trás.
 on:
   push:
     branches:
       - main
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 # Push novo no mesmo PR ou na main cancela a execução anterior, que só testaria um commit
@@ -16,10 +21,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # O nome windows é o check obrigatório da main: com outro nome, todo PR fica esperando um
+  # check que nunca vem.
   windows:
     runs-on: windows-latest
     # Leva de 1 a 3 minutos. Sem limite, um teste pendurado ficaria 6 horas cobrando em dobro.
     timeout-minutes: 6
+    # Em push e workflow_dispatch não existe pull_request, e o null compara igual a false,
+    # então esses rodam sempre.
+    if: github.event.pull_request.draft == false
 
     steps:
       - uses: actions/checkout@v4
