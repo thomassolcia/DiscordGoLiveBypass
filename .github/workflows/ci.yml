@@ -32,22 +32,47 @@ jobs:
     if: github.event.pull_request.draft == false
 
     steps:
+      # O filtro abaixo compara com o commit anterior, que o clone raso padrão não traz.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # O filtro de documentação fica aqui dentro, e não num paths-ignore do gatilho, porque
+      # com o workflow pulado o check windows nunca aparece e o PR fica bloqueado. Assim o job
+      # roda, vê que não há o que testar e termina verde.
+      - name: Ver se mudou código
+        id: mudou
+        shell: pwsh
+        env:
+          EVENTO: ${{ github.event_name }}
+          ANTERIOR: ${{ github.event.before }}
+        run: |
+          # No pull_request o checkout é o merge do PR com a main, e o primeiro pai é a main.
+          $base = switch ($env:EVENTO) {
+            'pull_request' { 'HEAD^1' }
+            'push' { $env:ANTERIOR }
+            default { '' }
+          }
+          ./.github/mudou-codigo.ps1 -Base $base
 
       - uses: actions/setup-go@v5
+        if: steps.mudou.outputs.codigo == 'true'
         with:
           go-version-file: go.mod
 
       # Um passo por comando: num passo só, a falha do primeiro sumiria atrás do sucesso do
       # último, porque o shell devolve o código de saída da última linha.
       - name: Analisar
+        if: steps.mudou.outputs.codigo == 'true'
         run: go vet ./...
 
       - name: Testar
+        if: steps.mudou.outputs.codigo == 'true'
         run: go test ./...
 
       # Pelo mesmo script da release: um driver que não embute ou um hash que mudou aparecem
       # aqui, e não no dia da tag.
       - name: Compilar
+        if: steps.mudou.outputs.codigo == 'true'
         shell: pwsh
         run: ./Compilar.ps1
