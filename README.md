@@ -19,7 +19,7 @@
 Você abre o programa, entra com a sua conta gratuita do Proton VPN ou escolhe um arquivo WireGuard, e clica em Ativar. A partir daí um serviço do Windows mantém um túnel que leva para fora do Brasil só o que o Discord precisa para liberar o Go Live, desde que o computador liga. Você abre o Discord pelo atalho de sempre e o Go Live funciona.
 
 <p align="center">
-  <img src="docs/janela-escura.png" alt="Janela do DiscordGoLiveBypass no tema escuro, com o Go Live liberado e só a transmissão passando pelo túnel" width="49%">
+  <img src="docs/janela-escura.png" alt="Janela do DiscordGoLiveBypass no tema escuro, com o Go Live liberado e o resumo das configurações" width="49%">
   <img src="docs/janela-clara.png" alt="A mesma janela no tema claro" width="49%">
 </p>
 
@@ -63,23 +63,30 @@ Qualquer outra VPN que entregue um arquivo WireGuard serve do mesmo jeito, e que
 1. Baixe o `.zip` na aba [Releases](../../releases) e extraia numa pasta.
 2. Abra o `DiscordGoLiveBypass.exe`.
 3. Entre com a conta do Proton, ou deixe a janela achar o `.conf` que você baixou: ele aparece sozinho na lista, vindo da pasta Downloads. Se estiver em outro lugar, arraste para a janela ou clique em **Escolher**.
-4. Clique em **Ativar** e responda **Sim** no aviso do Windows. É a única vez que ele pede permissão de administrador: para instalar o serviço que mantém o túnel.
+4. Confira as duas opções ao lado do botão: abrir o Discord quando o túnel ligar e **Iniciar com o Windows, com o ícone na bandeja**. As duas vêm marcadas.
+5. Clique em **Ativar** e responda **Sim** no aviso do Windows. É a única vez que ele pede permissão de administrador: para instalar o serviço que mantém o túnel.
 
-Com a opção marcada, o Discord abre sozinho quando o túnel liga. Se ele já estava aberto, a janela avisa para reiniciar, para as conexões que ele já tinha também passarem pelo túnel.
+Com a primeira opção marcada, o Discord abre sozinho quando o túnel liga. Se ele já estava aberto, a janela avisa para reiniciar, para as conexões que ele já tinha também passarem pelo túnel.
 
 A instalação copia o programa para Arquivos de Programas e põe um atalho no menu Iniciar. O `.zip` baixado pode ir para a lixeira.
 
 ### No dia a dia
 
-Nada. O túnel liga sozinho quando o Windows inicia, e você abre o Discord pelo atalho de sempre.
+Com **Iniciar com o Windows** ligado, nada. O túnel liga junto com o computador, e quando você entra na sua conta o programa abre na bandeja, perto do relógio, só com o ícone. Ele nunca fica rodando escondido: se o túnel está ligado, o ícone está lá. O Windows 11 costuma guardar ícone novo atrás da setinha da bandeja; para deixá-lo sempre à vista, arraste-o para fora dela. Você abre o Discord pelo atalho de sempre.
 
-A janela serve para ver e mexer: mostra em que país o Discord vê você, liga e desliga o túnel, troca o servidor e abre o Discord. Minimizar esconde a janela na bandeja, perto do relógio, e o menu do ícone faz as mesmas coisas. O tema claro, escuro ou o do Windows se escolhe no canto de cima.
+Com a opção desligada, nada do programa roda quando o computador liga. O túnel sobe quando você abre o DiscordGoLiveBypass, e a janela pode ir para a bandeja enquanto você usa o Discord.
 
-O X pergunta o que você quer: deixar o programa na bandeja, com o túnel ligado e o Go Live funcionando, ou desligar o túnel e fechar. Marcando **Não perguntar de novo**, a escolha vira o padrão, e dá para trocá-la nas preferências.
+A janela serve para ver e mexer: mostra em que país o Discord vê você, liga e desliga o túnel, troca o servidor e abre o Discord. Minimizar esconde a janela na bandeja, e o menu do ícone faz as mesmas coisas. O tema claro, escuro ou o do Windows se escolhe no canto de cima.
+
+O X pergunta o que você quer: deixar o programa na bandeja, com o túnel ligado e o Go Live funcionando, ou desligar o túnel e fechar. Marcando **Não perguntar de novo**, a escolha vira o padrão, e dá para trocá-la nas configurações.
+
+### Configurações
+
+O cartão **Configurações** do painel mostra as escolhas que mudam o que roda no seu computador, e **Mudar configurações** abre a tela onde elas se trocam: o que passa pela VPN e se o programa inicia com o Windows, na parte do túnel, e se o Discord abre quando o túnel liga e o que o X faz, na parte da janela.
 
 ### Só o Go Live ou o Discord inteiro
 
-Nas preferências da janela, **Pela VPN** escolhe o que passa pelo túnel.
+Nas configurações, **Pela VPN** escolhe o que passa pelo túnel.
 
 **Só o Go Live** é o padrão. Pelo túnel vão o gateway e a API do Discord, que é onde ele decide o que a conta pode fazer, e cada transmissão, só enquanto ela está aberta, seja a sua ou uma que você está assistindo. A voz, as mensagens, os anexos e as imagens seguem pela sua conexão, sem atraso, e a chamada fica num servidor do Brasil quando é você quem entra primeiro. A câmera não abre para quem assiste, porque ela viaja na mesma conexão da voz e o Discord decide o bloqueio na hora em que essa conexão nasce.
 
@@ -125,14 +132,21 @@ Dá, e funciona. A diferença é que a VPN comum leva o computador inteiro: o jo
 <summary><strong>Preciso abrir o programa toda vez?</strong></summary>
 <br>
 
-Não. O túnel fica num serviço do Windows, que liga sozinho com o computador. A janela só é necessária para ativar da primeira vez, ver o estado ou trocar alguma coisa.
+Não, se **Iniciar com o Windows** estiver ligado, que é o padrão. O túnel fica num serviço do Windows que liga com o computador, e o programa abre sozinho na bandeja quando você entra na conta. Com a opção desligada, o túnel só sobe quando você abre o programa.
+</details>
+
+<details>
+<summary><strong>Não quero que ele inicie com o Windows</strong></summary>
+<br>
+
+Abra o painel pelo ícone da bandeja, clique em **Mudar configurações** e desligue **Iniciar com o Windows**. O serviço passa a ficar parado quando o computador liga, e o programa some do Iniciar do Windows. Desligar o DiscordGoLiveBypass na aba **Inicializar** do Gerenciador de Tarefas tem o mesmo efeito: da próxima vez que você abrir o programa, ele vê a escolha e acerta o serviço junto.
 </details>
 
 <details>
 <summary><strong>O que fica instalado no meu computador?</strong></summary>
 <br>
 
-Um serviço chamado `DiscordGoLiveBypass`, o programa em `C:\Program Files\DiscordGoLiveBypass`, um atalho no menu Iniciar e o adaptador de rede do túnel, com o driver WireGuardNT. A configuração da VPN, com a chave, fica em `C:\ProgramData\DiscordGoLiveBypass`, numa pasta que só o sistema e os administradores leem. O tema e as outras escolhas da janela ficam em `%APPDATA%\DiscordGoLiveBypass`.
+Um serviço chamado `DiscordGoLiveBypass`, o programa em `C:\Program Files\DiscordGoLiveBypass`, um atalho no menu Iniciar e o adaptador de rede do túnel, com o driver WireGuardNT. A configuração da VPN, com a chave, fica em `C:\ProgramData\DiscordGoLiveBypass`, numa pasta que só o sistema e os administradores leem. O tema e as outras escolhas da janela ficam em `%APPDATA%\DiscordGoLiveBypass`. Com **Iniciar com o Windows** ligado, há também uma entrada no Iniciar do Windows da sua conta, a mesma que aparece no Gerenciador de Tarefas.
 
 **Desinstalar**, no canto de baixo da janela, remove tudo isso, inclusive o driver.
 </details>
@@ -193,7 +207,7 @@ No modo **O Discord inteiro**, o registro não é usado para nada.
 <summary><strong>Eu usava a 2.1, o que muda?</strong></summary>
 <br>
 
-Depois de atualizar, o túnel começa no modo **Só o Go Live**: a voz volta para a sua conexão e a chamada para um servidor do Brasil. Se você usa câmera, troque para **O Discord inteiro** nas preferências. Feche o Discord pela bandeja, em **Sair**, e abra de novo, para ele refazer o teste de latência pela sua conexão.
+Depois de atualizar, o túnel começa no modo **Só o Go Live**: a voz volta para a sua conexão e a chamada para um servidor do Brasil. Se você usa câmera, troque para **O Discord inteiro** nas configurações. Feche o Discord pela bandeja, em **Sair**, e abra de novo, para ele refazer o teste de latência pela sua conexão.
 </details>
 
 <details>
@@ -255,7 +269,7 @@ Se a transmissão abre, mas quem assiste fica carregando, olhe as linhas de serv
 <summary><strong>A câmera não abre para quem assiste</strong></summary>
 <br>
 
-No modo **Só o Go Live**, é esperado. A câmera viaja na mesma conexão da voz, e o Discord decide se ela pode ser vista na hora em que essa conexão nasce, pelo IP de onde ela vem. Trocar o caminho no meio da chamada não muda a decisão. Para usar a câmera, troque para **O Discord inteiro** nas preferências, saia da chamada e entre de novo.
+No modo **Só o Go Live**, é esperado. A câmera viaja na mesma conexão da voz, e o Discord decide se ela pode ser vista na hora em que essa conexão nasce, pelo IP de onde ela vem. Trocar o caminho no meio da chamada não muda a decisão. Para usar a câmera, troque para **O Discord inteiro** nas configurações, saia da chamada e entre de novo.
 </details>
 
 <details>
@@ -311,6 +325,8 @@ Trocar de modo, ou abrir e fechar uma transmissão, mexe só nas rotas que mudar
 
 As rotas só entram depois que o servidor da VPN responde ao primeiro handshake, e saem se ele passar três minutos sem responder. Um servidor fora do ar nunca deixa o Discord sem conexão: no máximo sem Go Live, até ele voltar.
 
+Iniciar com o Windows mexe em duas coisas, e as duas andam juntas. Uma é o tipo de início do serviço, automático ou manual, que o próprio serviço troca quando a janela pede. A outra é uma entrada em `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, no registro de quem instalou, que abre a janela com `-bandeja` ao entrar na conta: ela nasce escondida, só com o ícone, e aparece por inteiro se a bandeja não estiver disponível. Sem a entrada, o túnel ficaria ligado sem nada na tela, e é por isso que a janela não liga uma coisa sem a outra. Se a entrada for desligada no Gerenciador de Tarefas, a janela vê a marca que ele deixa e passa o serviço para manual. Com o serviço em início manual, quem o põe de pé é a janela, sem administrador: a instalação dá ao dono o direito de iniciar o serviço e de consultá-lo, e parar ou reconfigurar continuam só com o sistema e os administradores.
+
 A janela e o serviço conversam por um named pipe que só aceita o sistema, os administradores e o usuário que instalou. Antes de mandar a chave da VPN, a janela confere que o dono do pipe é o sistema, para nenhum outro programa poder se passar pelo serviço. Para mostrar o país, a janela pergunta ao gateway do Discord, em `gateway.discord.gg/cdn-cgi/trace`, com que IP e de que país você chega. É o IP do gateway que decide o que a conta pode fazer, e o pedido faz o mesmo caminho que o app.
 
 O login do Proton roda na janela, sem administrador. Ele faz o SRP com a [biblioteca do próprio Proton](https://github.com/ProtonMail/go-srp), escolhe na lista do Proton o servidor gratuito de menor pontuação fora do Brasil, gera um par de chaves Ed25519, pede um certificado para a chave pública e deriva dela a chave X25519 que o WireGuard usa, a mesma conta que a biblioteca de VPN do Proton faz. A configuração vai para o serviço pelo mesmo pipe de um arquivo importado e não passa pelo disco do usuário. O CAPTCHA do Proton se recusa a ser mostrado dentro de outra página, mas foi feito para rodar num WebView2, então abre numa janela própria, num processo separado: se algo der errado ali, só a janelinha fecha.
@@ -328,7 +344,8 @@ Precisa do [Go](https://go.dev/dl/). No PowerShell, na pasta do projeto:
 | arquivo | conteúdo |
 | --- | --- |
 | `main_windows.go` | escolhe entre janela, serviço, instalação e remoção |
-| `gui_windows.go` | métodos que a página chama, preferências e tema |
+| `gui_windows.go` | métodos que a página chama, preferências, tema e o início com o Windows visto pela janela |
+| `startup_windows.go` | a entrada da janela no Iniciar do Windows e a marca do Gerenciador de Tarefas |
 | `frontend/` | a página da janela |
 | `tray_windows.go` | ícone na bandeja, direto na API do Windows |
 | `service_windows.go` | serviço, instalação, remoção e a pasta protegida da configuração |

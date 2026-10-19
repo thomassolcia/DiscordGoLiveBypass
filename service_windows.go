@@ -112,6 +112,60 @@ type tunnelService struct {
 	dir      string
 	engine   *Engine
 	settings serviceSettings
+	startup  startControl
+}
+
+// Iniciar com o Windows é o tipo de início do próprio serviço. Desligado, ele fica parado
+// até a janela abrir e pô-lo de pé, e nada do programa roda sem a pessoa ver.
+type startControl interface {
+	automatic() (bool, error)
+	setAutomatic(on bool) error
+}
+
+type scmStart struct{}
+
+func (scmStart) open() (*mgr.Mgr, *mgr.Service, error) {
+	manager, err := mgr.Connect()
+	if err != nil {
+		return nil, nil, err
+	}
+	service, err := manager.OpenService(serviceName)
+	if err != nil {
+		manager.Disconnect()
+		return nil, nil, err
+	}
+	return manager, service, nil
+}
+
+func (c scmStart) automatic() (bool, error) {
+	manager, service, err := c.open()
+	if err != nil {
+		return false, err
+	}
+	defer manager.Disconnect()
+	defer service.Close()
+	config, err := service.Config()
+	if err != nil {
+		return false, err
+	}
+	return config.StartType == mgr.StartAutomatic, nil
+}
+
+// Só o tipo de início muda. O UpdateConfig do mgr regravaria o caminho do executável a
+// partir do que ele mesmo leu, e é melhor não mexer no que está certo.
+func (c scmStart) setAutomatic(on bool) error {
+	manager, service, err := c.open()
+	if err != nil {
+		return err
+	}
+	defer manager.Disconnect()
+	defer service.Close()
+	startType := uint32(mgr.StartManual)
+	if on {
+		startType = mgr.StartAutomatic
+	}
+	return windows.ChangeServiceConfig(service.Handle, windows.SERVICE_NO_CHANGE, startType, windows.SERVICE_NO_CHANGE,
+		nil, nil, nil, nil, nil, nil, nil)
 }
 
 func (s *tunnelService) readConf() (string, bool) {
@@ -144,6 +198,11 @@ func (s *tunnelService) status() ServiceStatus {
 	}
 	if engine.Handshake >= 0 {
 		status.Handshake = int64(engine.Handshake.Seconds())
+	}
+	if s.startup != nil {
+		if on, err := s.startup.automatic(); err == nil {
+			status.Autostart = &on
+		}
 	}
 	if text, ok := s.readConf(); ok {
 		status.HasConf = true
@@ -199,6 +258,14 @@ func (s *tunnelService) handle(req ipcRequest) ipcResponse {
 		}
 		log.Printf("modo trocado para %s", req.Mode)
 		s.engine.SetMode(req.Mode)
+	case cmdSetAutostart:
+		if s.startup == nil {
+			return fail(errors.New("este serviço não sabe mudar o início com o Windows"))
+		}
+		if err := s.startup.setAutomatic(req.Autostart); err != nil {
+			return fail(fmt.Errorf("não consegui mudar o início com o Windows: %v", err))
+		}
+		log.Printf("iniciar com o Windows: %v", req.Autostart)
 	case cmdDisable:
 		s.settings.Enabled = false
 		if err := saveSettings(s.dir, s.settings); err != nil {
@@ -260,7 +327,7 @@ func runService() error {
 	log.SetFlags(log.Ldate | log.Ltime)
 	log.Printf("serviço iniciando, versão %s", version)
 
-	s := &tunnelService{dir: dir, engine: NewEngine(), settings: loadSettings(dir)}
+	s := &tunnelService{dir: dir, engine: NewEngine(), settings: loadSettings(dir), startup: scmStart{}}
 	return svc.Run(serviceName, s)
 }
 
@@ -338,6 +405,39 @@ func createShortcut(link, target string) error {
 	return nil
 }
 
+// Atualizar não pode desfazer a escolha de não iniciar com o Windows. Instalação nova, ou
+// um serviço desativado por fora, volta ao padrão, que é iniciar.
+func installStartType(existing bool, current uint32) uint32 {
+	if existing && current == mgr.StartManual {
+		return mgr.StartManual
+	}
+	return mgr.StartAutomatic
+}
+
+// O padrão do Windows só deixa administrador iniciar um serviço. Sem iniciar com o Windows,
+// é a janela, rodando como a pessoa, que põe o túnel de pé quando ela abre o programa, então
+// o dono ganha os direitos de consultar e de iniciar, e mais nada: parar e reconfigurar
+// continuam só com o sistema e os administradores.
+func serviceSDDL(ownerSID string) string {
+	sddl := "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)"
+	if sid, err := windows.StringToSid(ownerSID); err == nil && sid.IsValid() {
+		sddl += "(A;;CCLCSWRPLOCRRC;;;" + sid.String() + ")"
+	}
+	return sddl
+}
+
+func setServiceSecurity(service *mgr.Service, ownerSID string) error {
+	sd, err := windows.SecurityDescriptorFromString(serviceSDDL(ownerSID))
+	if err != nil {
+		return err
+	}
+	dacl, _, err := sd.DACL()
+	if err != nil {
+		return err
+	}
+	return windows.SetSecurityInfo(service.Handle, windows.SE_SERVICE, windows.DACL_SECURITY_INFORMATION, nil, nil, dacl, nil)
+}
+
 // installService copia o executável para Arquivos de Programas, registra o serviço e o
 // atalho no menu Iniciar. Serve também de atualização: rodado por uma versão mais nova,
 // troca o executável e reinicia o serviço com a configuração que já estava guardada.
@@ -399,7 +499,7 @@ func installService(ownerSID string) error {
 			return err
 		}
 		current.BinaryPathName = fmt.Sprintf("%q -service", installedExe())
-		current.StartType = config.StartType
+		current.StartType = installStartType(true, current.StartType)
 		current.DisplayName = config.DisplayName
 		current.Description = config.Description
 		if err := service.UpdateConfig(current); err != nil {
@@ -407,6 +507,10 @@ func installService(ownerSID string) error {
 		}
 	}
 	defer service.Close()
+
+	if err := setServiceSecurity(service, settings.OwnerSID); err != nil {
+		return fmt.Errorf("não consegui liberar o serviço para a sua conta: %v", err)
+	}
 
 	// Se o serviço cair, o Windows sobe de novo: sem ele o Discord perde o túnel até a
 	// próxima vez que a pessoa abrir a janela.

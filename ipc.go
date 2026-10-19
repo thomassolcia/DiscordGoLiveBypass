@@ -18,12 +18,15 @@ const (
 	cmdEnable  = "enable"
 	cmdDisable = "disable"
 	cmdSetMode = "set_mode"
+
+	cmdSetAutostart = "set_autostart"
 )
 
 type ipcRequest struct {
-	Cmd  string `json:"cmd"`
-	Conf string `json:"conf,omitempty"`
-	Mode string `json:"mode,omitempty"`
+	Cmd       string `json:"cmd"`
+	Conf      string `json:"conf,omitempty"`
+	Mode      string `json:"mode,omitempty"`
+	Autostart bool   `json:"autostart,omitempty"`
 }
 
 // ServiceStatus é tudo o que a janela sabe do túnel. Nunca carrega a chave da VPN.
@@ -41,6 +44,8 @@ type ServiceStatus struct {
 	Handshake int64  `json:"handshake_s"`
 	Rx        uint64 `json:"rx"`
 	Tx        uint64 `json:"tx"`
+	// Ausente num serviço de antes da 2.3, que não sabe deixar de iniciar com o Windows.
+	Autostart *bool `json:"autostart,omitempty"`
 }
 
 type ipcResponse struct {

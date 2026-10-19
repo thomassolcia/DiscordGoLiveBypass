@@ -48,6 +48,13 @@ type App struct {
 	hidden   bool
 	quitting bool
 
+	// Aberta pelo Iniciar do Windows, a janela nasce escondida, só com o ícone na bandeja.
+	startHidden bool
+	startTried  bool
+
+	startupMu     sync.Mutex
+	startupSynced bool
+
 	// Login do Proton em andamento e o arquivo que ele gerou, ainda só na memória.
 	proton        *protonClient
 	protonServers []protonServer
@@ -90,6 +97,8 @@ type Prefs struct {
 	OpenDiscord bool   `json:"abrir_discord"`
 	// O que o X faz: perguntar, ir para a bandeja ou desligar o túnel e fechar.
 	CloseAction string `json:"ao_fechar"`
+	// O aviso de que o programa abriu na bandeja com o Windows aparece uma vez só.
+	TrayNoticeShown bool `json:"aviso_bandeja,omitempty"`
 }
 
 const (
@@ -199,6 +208,32 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.tray = tray
 	go a.watchMinimize()
+
+	if a.startHidden {
+		a.startedFromWindows()
+	}
+}
+
+// Escondida só se der para ver o ícone. Sem bandeja, ou com o serviço removido por fora e a
+// entrada do Iniciar sobrando, a janela aparece, para o programa nunca rodar sem ninguém ver.
+func (a *App) startedFromWindows() {
+	installed, _ := serviceInstalled()
+	if !installed {
+		userStartup.set(false, "")
+	}
+	if a.tray == nil || !installed {
+		a.MostrarJanela()
+		return
+	}
+	prefs := loadPrefs()
+	if prefs.TrayNoticeShown {
+		return
+	}
+	if a.tray.Balloon("O DiscordGoLiveBypass está na bandeja",
+		"Ele abre com o Windows e mantém o túnel do Go Live ligado. Clique no ícone para ver o painel ou mudar isso nas configurações.") {
+		prefs.TrayNoticeShown = true
+		savePrefs(prefs)
+	}
 }
 
 func (a *App) shutdown(ctx context.Context) {
@@ -371,6 +406,77 @@ func serviceInstalled() (installed, running bool) {
 	return true, status.CurrentState == windows.SERVICE_RUNNING
 }
 
+// Sem iniciar com o Windows, o serviço fica parado até a pessoa abrir o programa. A
+// instalação deu ao dono o direito de iniciá-lo, então a janela faz isso sem administrador.
+func startInstalledService() error {
+	manager, err := windows.OpenSCManager(nil, nil, windows.SC_MANAGER_CONNECT)
+	if err != nil {
+		return err
+	}
+	defer windows.CloseServiceHandle(manager)
+
+	name, _ := windows.UTF16PtrFromString(serviceName)
+	service, err := windows.OpenService(manager, name, windows.SERVICE_START|windows.SERVICE_QUERY_STATUS)
+	if err != nil {
+		return err
+	}
+	defer windows.CloseServiceHandle(service)
+	if err := windows.StartService(service, 0, nil); err != nil && !errors.Is(err, windows.ERROR_SERVICE_ALREADY_RUNNING) {
+		return err
+	}
+	return waitService(15 * time.Second)
+}
+
+// Só na primeira consulta da janela: depois disso, um serviço parado é coisa de uma
+// atualização em andamento ou de alguém que o parou de propósito, e o aviso da página cuida.
+func (a *App) firstStart() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	tried := a.startTried
+	a.startTried = true
+	return !tried
+}
+
+// syncStartup acerta, uma vez por abertura, o tipo de início do serviço com a entrada do
+// Iniciar do Windows. Devolve true quando mudou o serviço e o status precisa ser lido de novo.
+func (a *App) syncStartup(serviceAutomatic bool) bool {
+	a.startupMu.Lock()
+	defer a.startupMu.Unlock()
+	if a.startupSynced {
+		return false
+	}
+	a.startupSynced = true
+
+	exists, approved := userStartup.state()
+	want := wantStartup(serviceAutomatic, exists, approved)
+	changed := false
+	if want != serviceAutomatic {
+		if _, err := callService(ipcRequest{Cmd: cmdSetAutostart, Autostart: want}, 10*time.Second); err != nil {
+			log.Printf("acertando o início com o Windows: %v", err)
+			return false
+		}
+		log.Printf("a entrada do Iniciar foi desligada por fora, o serviço deixa de iniciar com o Windows")
+		changed = true
+	}
+	if err := userStartup.set(want, installedExe()); err != nil {
+		log.Printf("entrada do Iniciar do Windows: %v", err)
+	}
+	return changed
+}
+
+func (a *App) applyStartup(on bool) error {
+	a.startupMu.Lock()
+	defer a.startupMu.Unlock()
+	a.startupSynced = true
+	if _, err := callService(ipcRequest{Cmd: cmdSetAutostart, Autostart: on}, 10*time.Second); err != nil {
+		return err
+	}
+	if err := userStartup.set(on, installedExe()); err != nil {
+		return fmt.Errorf("o serviço mudou, mas não consegui mexer no Iniciar do Windows: %v", err)
+	}
+	return nil
+}
+
 // O Discord que "Abrir o Discord" abre: o que já está aberto, ou o primeiro instalado.
 func discordToOpen() (Channel, string, error) {
 	if running := RunningChannels(); len(running) > 0 {
@@ -383,8 +489,18 @@ func discordToOpen() (Channel, string, error) {
 func (a *App) Estado() AppState {
 	state := AppState{Version: version, DiscordOpen: []string{}}
 	state.Installed, state.ServiceRunning = serviceInstalled()
+	if state.Installed && !state.ServiceRunning && a.firstStart() {
+		if err := startInstalledService(); err != nil {
+			log.Printf("não consegui iniciar o serviço: %v", err)
+		}
+		state.Installed, state.ServiceRunning = serviceInstalled()
+	}
 	if state.ServiceRunning {
 		resp, err := callService(ipcRequest{Cmd: cmdStatus}, 5*time.Second)
+		if err == nil && !newerThan(parseVersion(version), parseVersion(resp.Status.Version)) &&
+			resp.Status.Autostart != nil && a.syncStartup(*resp.Status.Autostart) {
+			resp, err = callService(ipcRequest{Cmd: cmdStatus}, 5*time.Second)
+		}
 		if err != nil {
 			state.Error = err.Error()
 		} else {
@@ -546,8 +662,9 @@ func (a *App) sendConf(path string) error {
 }
 
 // Ativar instala o serviço na primeira vez, ou quando esta janela é de uma versão mais nova
-// que a instalada, entrega o arquivo da VPN e liga o túnel.
-func (a *App) Ativar(path string) (AppState, error) {
+// que a instalada, entrega o arquivo da VPN, liga o túnel e grava a escolha de iniciar com o
+// Windows, que a pessoa viu marcada ao lado do botão.
+func (a *App) Ativar(path string, iniciar bool) (AppState, error) {
 	state := a.Estado()
 	if !state.ServiceRunning || state.NeedsUpdate {
 		if err := a.install(); err != nil {
@@ -560,7 +677,15 @@ func (a *App) Ativar(path string) (AppState, error) {
 	if _, err := callService(ipcRequest{Cmd: cmdEnable}, 30*time.Second); err != nil {
 		return a.Estado(), err
 	}
+	if err := a.applyStartup(iniciar); err != nil {
+		return a.Estado(), err
+	}
 	return a.Estado(), nil
+}
+
+func (a *App) IniciarComWindows(ligar bool) (AppState, error) {
+	err := a.applyStartup(ligar)
+	return a.Estado(), err
 }
 
 func (a *App) Ligar() (AppState, error) {
@@ -662,6 +787,11 @@ func (a *App) Desinstalar() error {
 	if err := os.WriteFile(copyPath, raw, 0o755); err != nil {
 		return err
 	}
+	// A remoção roda como administrador, que pode ser outra conta: a entrada do Iniciar,
+	// que fica no registro desta pessoa, sai daqui mesmo.
+	if err := userStartup.set(false, ""); err != nil {
+		log.Printf("entrada do Iniciar do Windows: %v", err)
+	}
 
 	err = startElevated(copyPath, []string{"-uninstall", "-wait-pid", fmt.Sprint(os.Getpid())})
 	if errors.Is(err, errElevationDenied) {
@@ -692,10 +822,10 @@ func openGUILog() {
 	}
 }
 
-func runGUI() error {
+func runGUI(startHidden bool) error {
 	openGUILog()
 	log.Printf("janela iniciando, versão %s", version)
-	app := &App{}
+	app := &App{startHidden: startHidden, hidden: startHidden}
 	assets, err := fs.Sub(frontendFiles, "frontend")
 	if err != nil {
 		return err
@@ -716,6 +846,7 @@ func runGUI() error {
 		Height:           720,
 		MinWidth:         800,
 		MinHeight:        600,
+		StartHidden:      startHidden,
 		BackgroundColour: backgroundFor(prefs.Theme),
 		AssetServer:      &assetserver.Options{Assets: assets},
 		OnStartup:        app.startup,

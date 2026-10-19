@@ -23,6 +23,8 @@ const s = {
   pedidoFechar: null,
   lembrarFechar: false,
   modoTrocado: false,
+  iniciarComWindows: true,
+  config: false,
   proton: novoProton(),
 };
 
@@ -53,6 +55,7 @@ const icones = {
   externo: '<path d="M14 4h6v6"/><path d="M10 14 20 4"/><path d="M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/>',
   recarregar: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
   trocar: '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
+  ajustes: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
 };
 
 function icone(nome, preenchido = false) {
@@ -193,8 +196,9 @@ async function carregarCandidatos() {
 function avisos() {
   const app = s.app;
   let html = '';
-  // Durante a troca de servidor o erro aparece dentro da janela da troca, onde a pessoa está.
-  if (s.erro && !s.troca) html += faixaErro(s.erro, 'erro');
+  // Com a troca de servidor ou as configurações abertas, o erro aparece dentro delas, onde a
+  // pessoa está olhando.
+  if (s.erro && !s.troca && !s.config) html += faixaErro(s.erro, 'erro');
   if (app?.error) html += faixaErro(app.error, 'erro-servico');
   if (app?.installed && !app.service_running) {
     html += `<div class="faixa atencao" data-chave="parado"><span>O serviço do túnel está instalado, mas parado.</span>
@@ -329,7 +333,7 @@ function telaInicial() {
         <p>Um túnel WireGuard leva só o Go Live do Discord para fora do Brasil. A voz da chamada, o jogo, o navegador e o resto do computador continuam na sua conexão.</p>
         <ul class="vantagens">
           <li><span class="icone">${icone('escudo')}</span><div><b>Só a transmissão passa pela VPN</b><span>Voz sem atraso e nada de ping alto no jogo.</span></div></li>
-          <li><span class="icone">${icone('raio')}</span><div><b>Liga sozinho com o Windows</b><span>Depois de ativar, é só abrir o Discord pelo atalho de sempre.</span></div></li>
+          <li><span class="icone">${icone('raio')}</span><div><b>Liga com o Windows, à vista</b><span>O ícone fica na bandeja, perto do relógio, e isso se desliga nas configurações.</span></div></li>
           <li><span class="icone">${icone('janela')}</span><div><b>Sem janela preta</b><span>A permissão de administrador é pedida uma vez só.</span></div></li>
         </ul>
         <div class="cartao dica">
@@ -351,6 +355,10 @@ function telaInicial() {
           <hr>
           <h2><span class="passo">2</span> Ativar</h2>
           ${marcarAbrirDiscord()}
+          <label class="marcar">
+            <input type="checkbox" data-iniciar ${s.iniciarComWindows ? 'checked' : ''}>
+            <span>Iniciar com o Windows, com o ícone na bandeja</span>
+          </label>
           <button class="principal grande largo" data-acao="ativar" ${pronto && !s.ocupado ? '' : 'disabled'}
             title="${jaInstalado ? 'O serviço do túnel já está instalado' : 'O Windows pede permissão de administrador uma única vez'}">
             ${ativando ? 'Ativando…' : 'Ativar'}</button>
@@ -444,21 +452,78 @@ function cartaoEstado(st) {
     </section>`;
 }
 
-// O que passa pela VPN. Serviço de antes da 2.2 não diz o modo e não sabe trocar, então a
-// escolha só aparece depois da atualização.
-function escolhaModo(st) {
-  if (!st.mode) return '';
-  const explicacao = st.mode === 'completo'
-    ? 'A câmera funciona, mas a voz passa pela VPN, com mais atraso.'
-    : 'Voz e mensagens seguem direto. A câmera não abre para quem assiste.';
-  return `<label class="linha-pref">
-      <span>Pela VPN</span>
-      <select data-chave="modo" data-modo ${s.ocupado ? 'disabled' : ''}>
-        <option value="transmissao" ${st.mode === 'transmissao' ? 'selected' : ''}>Só o Go Live</option>
-        <option value="completo" ${st.mode === 'completo' ? 'selected' : ''}>O Discord inteiro</option>
-      </select>
-    </label>
-    <p class="pequeno modo" data-chave="modo-texto">${explicacao}</p>`;
+const textoFechar = { perguntar: 'Perguntar', bandeja: 'Ir para a bandeja', parar: 'Desligar e fechar' };
+
+// O painel mostra as escolhas que mudam o que roda no computador, para a pessoa saber delas
+// sem procurar. Um serviço de antes da 2.2 não diz o modo, e um de antes da 2.3 não diz se
+// inicia com o Windows: a linha que ele não sabe responder some.
+function cartaoConfig(st) {
+  const linha = (rotulo, valor, chave) => `<div class="par" data-chave="${chave}"><span>${rotulo}</span><b>${valor}</b></div>`;
+  return `<section class="cartao resumo" data-chave="cartao-config">
+      <h2>Configurações</h2>
+      ${st.mode ? linha('Pela VPN', st.mode === 'completo' ? 'O Discord inteiro' : 'Só o Go Live', 'resumo-modo') : ''}
+      ${st.autostart !== undefined ? linha('Iniciar com o Windows', st.autostart ? 'Sim, na bandeja' : 'Não', 'resumo-iniciar') : ''}
+      ${linha('Abrir o Discord ao ligar', s.prefs.abrir_discord ? 'Sim' : 'Não', 'resumo-abrir')}
+      ${linha('Ao clicar no X', textoFechar[s.prefs.ao_fechar] || 'Perguntar', 'resumo-fechar')}
+      <div class="acoes fim">
+        <button class="grande" data-acao="abrir-config" ${s.ocupado ? 'disabled' : ''}>${icone('ajustes')} Mudar configurações</button>
+      </div>
+    </section>`;
+}
+
+function ajuste(titulo, texto, controle, comoRotulo = false) {
+  const tag = comoRotulo ? 'label' : 'div';
+  return `<${tag} class="ajuste">
+      <span class="textos"><b>${titulo}</b><small>${texto}</small></span>
+      ${controle}
+    </${tag}>`;
+}
+
+function interruptor(atributos, ligado) {
+  return `<input type="checkbox" role="switch" class="chave" ${atributos} ${ligado ? 'checked' : ''}>`;
+}
+
+function modalConfig() {
+  if (!s.config || !s.app?.status) return '';
+  const st = s.app.status;
+  const ocupado = s.ocupado ? 'disabled' : '';
+  const nome = esc(s.app.discord || 'Discord');
+
+  let tunel = '';
+  if (st.mode) {
+    const aviso = s.modoTrocado ? '<span class="atencao-texto">Saia e entre de novo na chamada para valer.</span> ' : '';
+    const explicacao = st.mode === 'completo'
+      ? 'A câmera funciona, mas a voz passa pela VPN, com mais atraso.'
+      : 'Voz e mensagens seguem direto, sem atraso. A câmera não abre para quem assiste.';
+    tunel += ajuste('Pela VPN', aviso + explicacao, `<span class="segmentos" role="radiogroup" aria-label="Pela VPN">
+        <button role="radio" data-modo="transmissao" aria-checked="${st.mode !== 'completo'}" ${ocupado}>Só o Go Live</button>
+        <button role="radio" data-modo="completo" aria-checked="${st.mode === 'completo'}" ${ocupado}>O Discord inteiro</button>
+      </span>`);
+  }
+  if (st.autostart !== undefined) {
+    tunel += ajuste('Iniciar com o Windows',
+      'O túnel liga com o computador e o ícone fica na bandeja, perto do relógio. Desligado, nada do programa roda até você abri-lo.',
+      interruptor(`data-autostart ${ocupado}`, st.autostart), true);
+  }
+
+  const fechar = Object.entries(textoFechar).map(([valor, texto]) =>
+    `<option value="${valor}" ${s.prefs.ao_fechar === valor ? 'selected' : ''}>${texto}</option>`).join('');
+
+  return `<div class="fundo-modal" data-acao="fechar-config" data-chave="modal-config">
+      <section class="modal config" role="dialog" aria-modal="true" aria-labelledby="titulo-config">
+        <h2 id="titulo-config">Configurações</h2>
+        ${s.erro ? faixaErro(s.erro, 'erro-config') : ''}
+        ${tunel ? `<h3 class="secao">Túnel</h3>${tunel}` : ''}
+        <h3 class="secao">Janela</h3>
+        ${ajuste(`Abrir o ${nome} quando o túnel ligar`, 'Quando você ativa ou liga o túnel por aqui.',
+          interruptor('data-pref="abrir_discord"', s.prefs.abrir_discord), true)}
+        ${ajuste('Ao clicar no X', 'Minimizar sempre leva a janela para a bandeja.', `<select data-pref="ao_fechar">${fechar}</select>`)}
+        <div class="rodape-modal">
+          <span></span>
+          <button class="principal" data-acao="fechar-config">Pronto</button>
+        </div>
+      </section>
+    </div>`;
 }
 
 // Duas linhas de dois cartões. A grade iguala a altura dos cartões de cada linha, e o que
@@ -481,20 +546,7 @@ function painel() {
           <button class="grande" data-acao="abrir-troca" ${s.ocupado ? 'disabled' : ''}>${icone('trocar')} Trocar de servidor</button>
         </div>
       </section>
-      <section class="cartao">
-        <h2>Preferências</h2>
-        ${escolhaModo(st)}
-        ${marcarAbrirDiscord()}
-        <label class="linha-pref">
-          <span>Ao clicar no X</span>
-          <select data-pref="ao_fechar">
-            <option value="perguntar" ${s.prefs.ao_fechar === 'perguntar' ? 'selected' : ''}>Perguntar</option>
-            <option value="bandeja" ${s.prefs.ao_fechar === 'bandeja' ? 'selected' : ''}>Ir para a bandeja</option>
-            <option value="parar" ${s.prefs.ao_fechar === 'parar' ? 'selected' : ''}>Desligar o túnel e fechar</option>
-          </select>
-        </label>
-        <p class="pequeno fim">Minimizar leva a janela para a bandeja. O túnel não depende dela.</p>
-      </section>
+      ${cartaoConfig(st)}
       <section class="cartao">
         <h2>Detalhes técnicos</h2>
         <div class="par"><span>Último handshake</span><b>${esc(handshake)}</b></div>
@@ -576,7 +628,7 @@ function desenhar() {
   document.getElementById('versao').textContent = s.app.version;
   aplicar(tela, configurado() ? painel() : telaInicial());
   aplicar(rodape, desenharRodape());
-  aplicar(sobreposicao, modalTroca() + modalFechar());
+  aplicar(sobreposicao, modalTroca() + modalConfig() + modalFechar());
 }
 
 function aplicar(alvo, html) {
@@ -674,7 +726,7 @@ const acoes = {
   baixar: () => go().AbrirRelease(),
   ativar: () => acao('ativar', async () => {
     const discordAberto = (s.app?.discord_open?.length || 0) > 0;
-    await go().Ativar(s.escolhido.path);
+    await go().Ativar(s.escolhido.path, s.iniciarComWindows);
     s.escolhido = null;
     await depoisDeLigar(discordAberto);
   }),
@@ -693,6 +745,13 @@ const acoes = {
     s.saida = null;
     s.conferidoEm = 0;
   }),
+  'abrir-config': () => { s.config = true; s.erro = ''; desenhar(); },
+  'fechar-config': () => {
+    if (s.ocupado) return;
+    s.config = false;
+    s.erro = '';
+    desenhar();
+  },
   'abrir-troca': () => {
     s.troca = true;
     s.escolhido = null;
@@ -774,6 +833,15 @@ document.addEventListener('click', (evento) => {
     desenhar();
     return;
   }
+  const modo = evento.target.closest('[data-modo]');
+  if (modo) {
+    if (modo.disabled || modo.getAttribute('aria-checked') === 'true') return;
+    acao('modo', async () => {
+      await go().TrocarModo(modo.dataset.modo);
+      s.modoTrocado = true;
+    });
+    return;
+  }
   const alvo = evento.target.closest('[data-acao], [data-arquivo]');
   if (!alvo || alvo.disabled) return;
   // O fundo escurecido fecha a pergunta, mas um clique dentro do cartão não pode subir até ele.
@@ -791,12 +859,13 @@ document.addEventListener('change', (evento) => {
     s.lembrarFechar = evento.target.checked;
     return;
   }
-  if (evento.target.matches('[data-modo]')) {
-    const modo = evento.target.value;
-    acao('modo', async () => {
-      await go().TrocarModo(modo);
-      s.modoTrocado = true;
-    });
+  if (evento.target.matches('[data-iniciar]')) {
+    s.iniciarComWindows = evento.target.checked;
+    return;
+  }
+  if (evento.target.matches('[data-autostart]')) {
+    const ligar = evento.target.checked;
+    acao('iniciar', () => go().IniciarComWindows(ligar));
     return;
   }
   const campo = evento.target.closest('[data-pref]');
@@ -808,6 +877,7 @@ document.addEventListener('keydown', (evento) => {
   if (evento.key === 'Escape') {
     if (s.pedidoFechar) acoes['fechar-cancelar']();
     else if (s.troca) acoes['fechar-troca']();
+    else if (s.config) acoes['fechar-config']();
   }
   if (evento.key === 'Enter' && evento.target.matches('input[data-campo]')) {
     evento.preventDefault();

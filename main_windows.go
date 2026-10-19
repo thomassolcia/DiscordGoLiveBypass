@@ -27,6 +27,7 @@ func main() {
 	waitPID := flags.Int("wait-pid", 0, "")
 	captcha := flags.String("captcha", "", "")
 	challenge := flags.String("challenge", "", "")
+	tray := flags.Bool("bandeja", false, "")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		*service, *install, *uninstall, *captcha = false, false, false, ""
 	}
@@ -54,7 +55,7 @@ func main() {
 		}
 		os.Exit(writeResult(*result, err))
 	default:
-		if err := runGUI(); err != nil {
+		if err := runGUI(*tray); err != nil {
 			messageBox("DiscordGoLiveBypass", "A janela não abriu: "+err.Error(), windows.MB_ICONERROR)
 			os.Exit(1)
 		}
