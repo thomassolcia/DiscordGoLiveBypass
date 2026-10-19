@@ -2,34 +2,78 @@ name: ci
 
 # Confere a cada mudança, e não só na tag: quebrar o build na hora de publicar uma release
 # significa descobrir tarde, com a versão já anunciada.
+#
+# O push fica só na main e o pull_request cobre as branches de trabalho, então cada commit
+# roda uma vez. O ready_for_review entra porque rascunho não roda: marcar o PR como pronto
+# é o que dispara a execução que ficou para trás. Sem ele, o PR pronto ficaria só com o
+# skipped do rascunho, que o GitHub aceita como aprovado no check obrigatório.
 on:
   push:
     branches:
       - main
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
+# Push novo no mesmo PR ou na main cancela a execução anterior, que só testaria um commit
+# que já ficou velho.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # O nome windows é o check obrigatório da main: com outro nome, todo PR fica esperando um
+  # check que nunca vem.
   windows:
     runs-on: windows-latest
+    # Leva de 1 a 3 minutos. Sem limite, um teste pendurado ficaria 6 horas cobrando em dobro.
+    timeout-minutes: 6
+    # Em push e workflow_dispatch não existe pull_request, e o null compara igual a false,
+    # então esses rodam sempre.
+    if: github.event.pull_request.draft == false
 
     steps:
+      # O filtro abaixo compara com o commit anterior, que o clone raso padrão não traz.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      # O filtro de documentação fica aqui dentro, e não num paths-ignore do gatilho, porque
+      # com o workflow pulado o check windows nunca aparece e o PR fica bloqueado. Assim o job
+      # roda, vê que não há o que testar e termina verde.
+      - name: Ver se mudou código
+        id: mudou
+        shell: pwsh
+        env:
+          EVENTO: ${{ github.event_name }}
+          ANTERIOR: ${{ github.event.before }}
+        run: |
+          # No pull_request o checkout é o merge do PR com a main, e o primeiro pai é a main.
+          $base = switch ($env:EVENTO) {
+            'pull_request' { 'HEAD^1' }
+            'push' { $env:ANTERIOR }
+            default { '' }
+          }
+          ./.github/mudou-codigo.ps1 -Base $base
 
       - uses: actions/setup-go@v5
+        if: steps.mudou.outputs.codigo == 'true'
         with:
           go-version-file: go.mod
 
       # Um passo por comando: num passo só, a falha do primeiro sumiria atrás do sucesso do
       # último, porque o shell devolve o código de saída da última linha.
       - name: Analisar
+        if: steps.mudou.outputs.codigo == 'true'
         run: go vet ./...
 
       - name: Testar
+        if: steps.mudou.outputs.codigo == 'true'
         run: go test ./...
 
       # Pelo mesmo script da release: um driver que não embute ou um hash que mudou aparecem
       # aqui, e não no dia da tag.
       - name: Compilar
+        if: steps.mudou.outputs.codigo == 'true'
         shell: pwsh
         run: ./Compilar.ps1
