@@ -12,9 +12,17 @@ permissions:
   id-token: write
   attestations: write
 
+# Republicar a mesma tag cancela a execução anterior, mesmo no meio da publicação, porque a
+# nova apaga e refaz a release do zero.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   windows:
     runs-on: windows-latest
+    # Leva de 1 a 2 minutos. Sem limite, um passo pendurado ficaria 6 horas cobrando em dobro.
+    timeout-minutes: 6
 
     steps:
       - uses: actions/checkout@v4

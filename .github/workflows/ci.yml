@@ -9,9 +9,17 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Push novo no mesmo PR ou na main cancela a execução anterior, que só testaria um commit
+# que já ficou velho.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   windows:
     runs-on: windows-latest
+    # Leva de 1 a 3 minutos. Sem limite, um teste pendurado ficaria 6 horas cobrando em dobro.
+    timeout-minutes: 6
 
     steps:
       - uses: actions/checkout@v4
